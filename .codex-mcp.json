@@ -2,6 +2,12 @@
   "mcpServers": {
     "cattlepen": {
       "url": "https://mcp.cattlepen.ai",
+      "scopes": [
+        "openid",
+        "email",
+        "profile",
+        "offline_access"
+      ],
       "oauth": {
         "client_id": "mcp"
       }

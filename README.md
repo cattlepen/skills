@@ -127,7 +127,7 @@ installation's.
 Claude Code (`--scope user` makes the server available in every project):
 
 ```sh
-claude mcp add --scope user --transport http cattlepen https://mcp.cattlepen.ai --client-id mcp
+claude mcp add-json --scope user cattlepen '{"type":"http","url":"https://mcp.cattlepen.ai","oauth":{"clientId":"mcp","scope":"openid email profile offline_access"}}'
 ```
 
 Then sign in from a session: run `/mcp`, choose `cattlepen` and authenticate.
@@ -136,8 +136,11 @@ Codex:
 
 ```sh
 codex mcp add cattlepen --url https://mcp.cattlepen.ai --oauth-client-id mcp
-codex mcp login cattlepen
+codex mcp login cattlepen --scopes openid,email,profile,offline_access
 ```
+
+Name the scopes. Without them Codex asks for every scope the identity provider lists, and the
+sign-in fails with `invalid_scope`; `offline_access` keeps the sign-in alive between sessions.
 
 An MCP connection lets the agent coordinate Cattlepen work. Executing workflow steps also needs a
 runner connected to Cattlepen; see the [Cattlepen documentation](https://cattlepen.ai/docs/).

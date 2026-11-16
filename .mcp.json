@@ -4,7 +4,8 @@
       "type": "http",
       "url": "${CATTLEPEN_MCP_URL:-https://mcp.cattlepen.ai}",
       "oauth": {
-        "clientId": "mcp"
+        "clientId": "mcp",
+        "scope": "openid email profile offline_access"
       }
     }
   }
