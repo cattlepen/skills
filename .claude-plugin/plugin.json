@@ -1,0 +1,11 @@
+{
+  "name": "cattlepen",
+  "description": "Agent skills for cattlepen: author and repair workflows, set up projects, and drive tasks through pipelines with the cattlepen MCP server.",
+  "author": {
+    "name": "Cattlepen"
+  },
+  "homepage": "https://cattlepen.ai/docs/",
+  "repository": "https://github.com/cattlepen/skills",
+  "license": "Apache-2.0",
+  "keywords": ["cattlepen", "workflows", "mcp", "agents"]
+}

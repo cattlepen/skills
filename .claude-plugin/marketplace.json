@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "cattlepen-skills",
+  "owner": {
+    "name": "Cattlepen"
+  },
+  "metadata": {
+    "description": "Agent skills for cattlepen."
+  },
+  "plugins": [
+    {
+      "name": "cattlepen",
+      "source": "./",
+      "description": "Agent skills for cattlepen: author and repair workflows, set up projects, and drive tasks through pipelines with the cattlepen MCP server.",
+      "category": "development"
+    }
+  ]
+}
