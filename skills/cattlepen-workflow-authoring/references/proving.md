@@ -82,10 +82,15 @@ one (`shepherd` on their machine).
 binding"; 422 "task inputs are not ready" with the readiness diagnostics. A run can also stay
 `pending`; `get_run` then gives a `pending_reason`.
 
-Follow it by calling the tools again until it ends:
+Follow it by calling the tools again until it ends. How you wait between checks is your harness's
+business (a shell `sleep`, run in the background where the harness requires it); never poll in a tight
+loop, and do not end your turn while the run is live unless a wait you started will bring you back.
 
 - `get_run{run_id}`: `status` is `pending`, `active`, then `completed`, `halted` or `cancelled`.
-- `get_run_events{run_id, after: <last seq>}`: the journal in order. A healthy run reads
+- `get_run_events{run_id, after: <last seq>, limit: 20}`: the journal in order. Keep `limit` small and
+  page forward, `after` set to the last `seq` you read, until a page comes back empty: one page of an
+  agent node's notes reached 86,996 characters at the default of 200 events, more than a client
+  accepts as one tool result. A healthy run reads
   `run_dispatched`, `run_started`, then per node `node_started`, `node_event` notes and
   `node_completed` (which carries the node's deliverables), `branch_routed` at each switch,
   `rework_triggered` when work is sent back, and finally `run_completed`, or `run_halted` with

@@ -204,8 +204,9 @@ directly instead of trying `publish_version` first. Use the generic API tools:
 1. `mutate_api_operation` with `operation: "POST /workflows/{id}/versions/{version}/publication-plans"` and
    `request: {path: {id: <workflow id>, version: <n>}, body: {base_revision: <snapshot revision>}}`. The
    reply's `data` holds `plan_id`, `declaration` (the exact YAML that will be published, with final pins)
-   and `dependencies[]` with `action: "publish"` or `"reuse"` for each binding. Show the user what will be
-   published: publishing cannot be undone.
+   and `dependencies[]` with `action: "publish"` or `"reuse"` for each binding. Read what will be
+   published and list it in your report: publishing cannot be undone. When the request needs the fix
+   published, approve without asking again; otherwise show it to the user first (the rule in `../SKILL.md`).
 2. Optionally `read_api_operation` with `operation: "GET /workflows/{id}/versions/{version}/publication-plans/{plan_id}"`.
 3. `mutate_api_operation` with
    `operation: "POST /workflows/{id}/versions/{version}/publication-plans/{plan_id}/approve"` and

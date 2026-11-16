@@ -21,9 +21,11 @@ halted one with `halt_kind: "runner"`, a `failed_node`, and `outcome.reason: "pl
 workflow routed itself to its own stop node, here after a download failed); a cancelled one with
 `outcome: {"status": "cancelled", "reason": null}`.
 
-`get_run_events(run_id, after=<seq>, limit=<n>)` returns `{"items": [...]}`, oldest first, each item
-`{seq, id, event_type, node_id, occurred_at, received_at, payload}`. `after` is exclusive and there is no
-cursor field: page until `items` is empty. `seq` grows but skips numbers within a run, so record the last
+`get_run_events(run_id, after=<seq>, limit=20)` returns `{"items": [...]}`, oldest first, each item
+`{seq, id, event_type, node_id, occurred_at, received_at, payload}`. Always pass a small `limit`: one page
+of an agent node's notes reached 86,996 characters at the default of 200 events, more than a client
+accepts as one tool result. `after` is exclusive and there is no cursor field: page until `items` is
+empty. `seq` grows but skips numbers within a run, so record the last
 `seq` you saw; never count events.
 
 Event types, in the order a run produces them:

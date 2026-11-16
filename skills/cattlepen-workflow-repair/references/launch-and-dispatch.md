@@ -106,7 +106,8 @@ then an object with a `code`. Codes and their fields are in `codes.md`, section 
 | `project_access_revoked` | the person who started the run is no longer a project member |
 | `awaiting_source_runner` | a resumed run waits for the runner that holds the original run |
 
-Proof: call `get_run` again until `status` is `active`; `get_run_events` then shows `run_dispatched`
+Proof: call `get_run` again until `status` is `active`; `get_run_events` (in small pages, `limit: 20`; see
+`run-time.md`, "Reading a run") then shows `run_dispatched`
 followed by `run_started` (the order seen on completed runs).
 
 ### A task is queued but no run appears
@@ -130,7 +131,7 @@ notification and to the server's and runner's logs. **No MCP tool can read why a
 declined**, so do not report "the run started" or guess a reason; say it was declined and removed, then
 diagnose.
 
-Before a run vanishes you may catch transient declines: while it is still `pending`, `get_run_events` shows
+Before a run vanishes you may catch transient declines: while it is still `pending`, `get_run_events` (small pages, `limit: 20`) shows
 `run_declined` events (read from source). `workspace.fetch`, `bundle.download`, `capacity.busy`,
 `resume.busy` and `accept.timeout` are transient: the server offers the run again at once. After three in a
 row the runner declines it permanently with `accept.retries-exhausted` "declined transiently <n> times in a

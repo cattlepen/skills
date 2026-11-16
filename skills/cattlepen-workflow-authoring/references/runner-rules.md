@@ -46,8 +46,8 @@ node, not at the start.
 
 ## Checking with `shepherd validate`
 
-Where the runner CLI is installed, `shepherd validate <dir>` compiles a workflow directory with the
-runner's own compiler, applies the server's publish rules (`publish.*` codes), and checks each inline
+Where the runner CLI is installed (`shepherd --version` prints a version), `shepherd validate <dir>`
+compiles a workflow directory with the runner's own compiler, applies the server's publish rules (`publish.*` codes), and checks each inline
 script: `sh -n` must parse it, it may read only the inputs its node consumes, and it may write only
 `$SHEPHERD_OUT/<name>.json` (and the body file) for a deliverable its node produces
 (`script.unconsumed-input`, `script.undeclared-output`). It needs `sh` on PATH. It prints
@@ -105,4 +105,6 @@ Walk the published YAML (`get_declaration`) and confirm each line:
 - [ ] no inline node uses `run: {profile: ...}` unless the target repository defines that profile;
 - [ ] every repository the task selects has a `url` the runner can clone or a runner binding.
 
-Tell the user which check you ran. "Checked by hand" is rung 3 only when every line was confirmed.
+One of the two checks always happens. Tell the user which one you ran on the published version;
+"checked by hand" is rung 3 only when every line was confirmed, and a report that names neither
+stops at rung 2.

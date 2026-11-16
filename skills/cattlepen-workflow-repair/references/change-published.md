@@ -47,18 +47,23 @@ Measured facts:
    - Route B: add a binding change for each draft dependency (see `save-validate-publish.md`, section 3).
    - New nodes and reworks need a fresh UUID `id`, as on any draft.
 5. **Validate twice.** `validate_workflow{workflow_id, version: N+1}` must return no error. Then run the
-   runner's checks on the draft (`runner-only-rules.md`): export it and run `shepherd validate`, or walk the
-   manual list. Checking the draft is the point: once published, a version the runner refuses stays in the
-   version list for good.
-6. **Publish.** First tell the user which tasks will pick the new version up: every task of the workflow
-   with `workflow_version: null` (`list_tasks{workflow_id}`) runs N+1 from its next start. Then, all
-   dependencies published: `publish_version{kind: "workflows", entry_id, version: N+1, base_revision}`.
-   Any draft binding: the publication plan (`save-validate-publish.md`, 4.1).
-7. **Check the tasks.** Read each task bound to the workflow again:
+   runner's checks on the draft (`runner-only-rules.md`): `shepherd validate` on its export when
+   `shepherd --version` works, otherwise every manual rule. Checking the draft is the point: once published,
+   a version the runner refuses stays in the version list for good.
+6. **Publish, when the request needs a published fix.** A request such as "it will not publish, fix it" or
+   "its runs vanish, fix it" is only met by a published version, so publish without asking again; ask first
+   only when the user asked for a diagnosis, when the fix changes what the workflow does beyond removing the
+   fault, or when they must choose between fixes (the rule in `../SKILL.md`). All dependencies published:
+   `publish_version{kind: "workflows", entry_id, version: N+1, base_revision}`. Any draft binding: the
+   publication plan (`save-validate-publish.md`, 4.1).
+7. **Check the tasks and report them.** Read every task of the workflow (`list_tasks{workflow_id}`) and put
+   each in the report:
    - `workflow_version: null` (unpinned): `resolved_version` is now N+1, and the next start runs it. Measured.
-   - `workflow_version: M` (pinned): it keeps M. To move it, send
+   - `workflow_version: M` (pinned): it keeps M, so the fix does not reach it. Name it in the report with
+     what moving it would take: one call,
      `mutate_api_operation{operation: "PATCH /tasks/{id}", request: {path: {id}, body: {workflow_version: <n>}}}`
-     with the new number, or `null` to follow the latest published version again. Measured both ways; an
+     with the new number, or `null` to follow the latest published version again. A pin is a deliberate
+     choice, so leave it unless the user says to move it. Measured both ways; an
      unpublished number is refused with `422` `task.unknown_version` "version 9 is not a published version of
      the workflow". While a task has a run pending, active or cancelling it is `frozen`, and launch fields
      are refused with `409` `task.launch_frozen`.

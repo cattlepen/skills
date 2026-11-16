@@ -2,8 +2,8 @@
 
 Four symptoms: the run halted; it is parked on a question; a node fails or loops through its reworks; it
 completed but the result is wrong. Do not start runs to test a theory: each start costs the user model usage
-and can change their repository. Read the run with `get_run`, `get_run_events` and `get_run_waits`; start a
-run only when the user asks.
+and can change their repository. Read the run with `get_run`, `get_run_events` (in small pages, see "Reading
+a run") and `get_run_waits`; start a run only when the user asks.
 
 Most of this page is read from the runner's and the server's source. What was seen on recorded runs of a
 test installation is marked **seen**: runs halted at a `cancel` node, human gates answered (including a
@@ -17,7 +17,10 @@ for good were not seen.
   on a halt, `limit_wait`, `parked_reason`, `open_waits` (the number of questions waiting), `pending_reason`,
   `source_run_id` (set on a resumed or readmitted run), `workflow_version` (the version it runs; a run never
   changes version).
-- `get_run_events{run_id, after?}`: the journal, oldest first; page with `after` set to the last `seq`.
+- `get_run_events{run_id, after, limit: 20}`: the journal, oldest first. Keep `limit` small and page
+  forward with `after` set to the last `seq` until a page comes back empty: one page of an agent node's
+  notes reached 86,996 characters at the default of 200 events, more than a client accepts as one tool
+  result.
   Event types seen: `run_dispatched`, `run_started`, `node_started` (with `iteration`, from `"0"`, and
   `attempt`, from 0), `node_event` (narration: `payload.kind` such as `run`, `bash`, `say`, `agent`,
   `publish`, `delta`, and `retry`), `node_completed` (with the produced `deliverables[]{name, value}`),

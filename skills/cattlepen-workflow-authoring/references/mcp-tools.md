@@ -199,9 +199,9 @@ mutate_api_operation{operation: "POST /workflows/{id}/versions/{version}/publica
   -> data.published_at, data.version_id, the dependencies as published
 ```
 
-Show the user what the plan publishes (the workflow and each dependency) before approving it; a
-request that already said to publish this workflow covers the entries it created for it, and the
-report then lists what was published. The
+Read what the plan publishes (the workflow and each dependency) before approving it, and list it in
+your report. A request to have this workflow working covers publishing it and the entries you
+created for it; ask first when the plan would also publish something else. The
 approval publishes them all together. A plan does not expire, but any new save to the workflow or to
 one of its dependencies after the plan was created makes the approval fail with 409
 `workflow.publication_changed`: create a new plan. The approval also waits for other people's open
@@ -215,8 +215,9 @@ UUID `start_run` and readiness accept), `published_at`, `launchable` and `launch
 Publishing gives every node and rework an `id` if it had none, rewrites each pin to
 `{version, id, sha256}`, and freezes the version. A task with no pinned version runs the latest
 published version, so publishing a new version changes what such tasks run from their next start.
-Before you publish version 2 or later, list the workflow's tasks (`list_tasks{workflow_id}`; a
-task's `workflow_version: null` means unpinned) and tell the user which of them will pick it up. A
+When you publish version 2 or later, list the workflow's tasks (`list_tasks{workflow_id}`; a
+task's `workflow_version: null` means unpinned) and name in your report the ones that pick it up.
+Ask before publishing when the new version changes behaviour the user did not ask to change. A
 task can be held on the old version with `mutate_api_operation{operation: "PATCH /tasks/{id}",
 request: {path: {id}, body: {workflow_version: <n>}}}`.
 

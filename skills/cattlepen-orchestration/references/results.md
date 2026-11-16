@@ -38,5 +38,9 @@ pull request, or whether the run ends at deliverables someone applies by hand. T
 
 In the state file, next to the task: the run id, the evidence (pull request URL and merge commit, or the
 deliverable names you read) and when you read it. Start a dependent task only after its dependency's
-evidence says merged. If the evidence contradicts the run (the run completed but no pull request exists, or
-it was closed unmerged), the task is not delivered: read the run's last events, then retry or report.
+evidence says its change is on the branch the dependent run starts from. When the workflow leaves the change
+only in a pull request, a branch or a deliverable, that never happens by itself: the dependent task waits for
+the person to merge (or for your merge, with their word), or you report that the chain cannot continue as it
+is. Starting it anyway gives it a tree without the change it needs. If the evidence contradicts the run (the
+run completed but no pull request exists, or it was closed unmerged), the task is not delivered: read the
+run's last events, then retry or report.

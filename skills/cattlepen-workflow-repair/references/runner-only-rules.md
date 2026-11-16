@@ -11,7 +11,7 @@ So before you call a workflow fixed, check these rules. There are two ways.
 ## Way 1: run the runner's validator (preferred)
 
 This needs the `shepherd` command on the machine you work on (it is installed where a runner runs; check
-with `shepherd --help`). It reads a **bundle directory**:
+with `shepherd --version`, which prints a version when it is). It reads a **bundle directory**:
 
 ```
 <dir>/workflow.yml

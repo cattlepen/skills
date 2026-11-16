@@ -32,10 +32,12 @@ that no server tool checks, so a published workflow can still be refused or stop
 - A run changes only the repository its task names (`repo`). The project's other repositories it may
   read (`readonly_repos`) are reset after every node, so nodes pass state only in deliverables.
 - In editor operations every new node and every new rework carries an `id` that is a fresh UUID.
-- Publish only what the user asked to publish, and start a run only when the user asked for one. A
-  task without a version pin runs the latest published version, so publishing a new version of a
-  workflow that already has a published one changes what its tasks run from their next start: say so
-  to the user, naming those tasks (`list_tasks{workflow_id}`), before you publish.
+- Publish what the user asked to have working (a workflow that is meant to run is only usable once
+  published), and start a run only when the user asked for one. A task without a version pin runs
+  the latest published version, so a new version of a workflow that already has a published one
+  reaches its unpinned tasks from their next start: name those tasks in your report
+  (`list_tasks{workflow_id}`). Ask before publishing when the new version would change behaviour the
+  user did not ask to change.
 - After an error that is not certified as "nothing was written", read the state before you retry:
   a taken name, every publish refusal and every `start_run` refusal come back uncertified
   (`references/mcp-tools.md`, "Errors").
@@ -83,11 +85,13 @@ example "published; to prove it, a task with a brief attached and a runner onlin
    Done when each document uses only keys the dialect lists, and each prompt says what good work is,
    when to choose each enum value and what to do when work comes back.
 
-4. **Check the runner's rules on paper.** Open `references/runner-rules.md` and walk its list over
-   the design. If the `shepherd` CLI is installed, write the documents in the source layout of
-   `examples/`, build a local copy with `scripts/build_bundle.py <dir> --validate-copy <copy>` (on
-   either path) and run `shepherd validate <copy>`.
-   Done when no item of the list applies, or `shepherd validate` prints `ok`.
+4. **Check the runner's rules before creating anything.** This check always happens; only its means
+   depend on the machine. Run `shepherd --version`. If it prints a version, write the documents in the
+   source layout of `examples/`, build a local copy with `scripts/build_bundle.py <dir>
+   --validate-copy <copy>` (on either path) and run `shepherd validate <copy>`. If it does not, walk
+   every item of the hand checklist in `references/runner-rules.md` over the documents.
+   Done when `shepherd validate` prints `ok:`, or every item of the checklist was checked and holds;
+   note which of the two you did.
 
 5. **Create it through the MCP.** Open `references/mcp-tools.md` and take one path:
    - **Path A, a bundle** (a new workflow of any size): build it with this skill's script,
@@ -107,20 +111,23 @@ example "published; to prove it, a task with a brief attached and a runner onlin
    dependency published, `publish_version` publishes the workflow. With bindings (an import always
    has them; so does path B with draft dependencies), publish through the publication plan (create,
    read, approve), which publishes the workflow and those drafts together; do not call
-   `publish_version` first. Before publishing version 2 or later, warn the user as the rules say.
+   `publish_version` first. For version 2 or later, follow the publishing rule above.
    Done when `list_versions` shows the new version published and `launchable: true` (rung 2).
 
-7. **Check the published documents against the runner rules.** With the CLI, export the version
-   (`export_workflow`), write it out with `python3 scripts/export_to_bundle.py export.json <dir>` and
-   run `shepherd validate <dir>` (`references/runner-rules.md`). Without it, walk the written list
-   against the published YAML from `get_declaration`.
-   Done when either is clean (rung 3). A failure means a new draft (`create_version`), a fix and a
-   new publish.
+7. **Check the published version against the runner rules.** Always, by the same means as step 4.
+   With the CLI (`shepherd --version` prints a version), export the version (`export_workflow`), write
+   it out with `python3 scripts/export_to_bundle.py export.json <dir>` and run `shepherd validate <dir>`
+   (`references/runner-rules.md`). Without it, walk every item of that page's hand checklist against
+   the published YAML from `get_declaration`.
+   Done when either is clean (rung 3). Your final message says which of the two was done on the
+   published version; a report that cannot say it stops at rung 2. A failure means a new draft
+   (`create_version`), a fix and a new publish.
 
 8. **Prove it.** Open `references/proving.md`. Create or pick a task in the project with `repo`
    set, attach every required input with `attach_task_file`, read `get_task_readiness`, the task's
    `launch_problem` and whether a runner that counts for the project is online. Start a trial run
-   only if the user asks, then follow it with `get_run` and `get_run_events` until it ends; fix and
+   only if the user asks, then follow it with `get_run` and `get_run_events` (small pages, as
+   `references/proving.md` says, which also says how to wait between checks) until it ends; fix and
    republish if it halts.
    Done when rung 4 holds, and rung 5 if the user asked for a run.
 
@@ -134,9 +141,10 @@ example "published; to prove it, a task with a brief attached and a runner onlin
 - [ ] Every inline script writes every declared output on every path, markdown and html with their
       `.json` file too, and parses with `sh -n`.
 - [ ] The workflow and every pinned dependency are published; `list_versions` says `launchable`.
-- [ ] For a second or later version, the user was told before publishing which unpinned tasks would
-      run it.
-- [ ] The runner rules were checked, by `shepherd validate` or by the written list (say which).
+- [ ] For a second or later version, the report names the unpinned tasks that now run it, and a
+      change of behaviour the user did not ask for was asked about before publishing.
+- [ ] The runner rules were checked on the published version, by `shepherd validate` or by every item
+      of the hand checklist, and the final message says which; without that, the report says rung 2.
 - [ ] The task has `repo`, its inputs attached and `ready: true`, `launch_problem: null`, a runner
       online.
 - [ ] The user was told the highest rung reached and what the next one needs.
