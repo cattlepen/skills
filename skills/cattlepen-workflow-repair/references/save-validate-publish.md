@@ -160,7 +160,7 @@ The codes you will meet most, with the measured message and the fix. The full li
 |---|---|---|
 | `agent.no-harness` | "agent node names no runtime harness" (path `nodes.<node>.runtime.harness`) | add `runtime: {harness: claude-code}` or `codex` to that agent node |
 | `pin.unresolved` | "no published version 1 of deliverable \"check\"" | publish that version first, or add a binding to its draft (below) |
-| `switch.unrouted-value` | "value \"fail\" of check.result has no route — every value must be routed explicitly" | add a route for every enum value of the switched field |
+| `switch.unrouted-value` | "value \"fail\" of check.result has no route — every value must be routed explicitly" | add a route for every enum value of the switched field: where an existing value of the same meaning goes, else to the workflow's `cancel` node; that is part of the fix, and the report names the choice |
 | `graph.unreachable-node` | "node \"stop\" is not reachable from entry" | connect the node, or remove it; a cancel node used only by a rework's `on_exhausted` is reachable once that rework is |
 | `graph.unreachable-rework` | "no reachable switch routes into rework \"redo\"" | route at least one switch value to the rework |
 | `graph.unconsumed-deliverable` (warning) | "\"report\" produced by \"write\" is never consumed" | consume it, list it in `outputs`, or ignore: it does not block publishing |

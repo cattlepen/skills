@@ -133,7 +133,10 @@ Seen: `container`, `children`, `iteration`, and `null` with a position.
 `read_api_operation(operation="GET /accounts/{id}/settings", request={"path": {"id": "<account id>"}})`.
 Its `queued_ready` counts the queued tasks it would start: it read 0, then 1 with one ready task queued,
 then 0 after the dequeue, while `exhaust_queue` stayed `false` and no run was created. Only an owner may turn
-it on, and turning it on starts up to the free seats at once, across the whole account.
+it on, and turning it on starts up to the free seats at once, across the whole account. A plain member cannot
+even read it: measured with role `member` (permissions `issue_own_key`, `start_run`, `view_account`), the
+read answers 403 `{"error": "access_denied", "message": "the account grants no right to this action"}`. Then
+whether the queue runs is unknown to you: start each run with `start_run` and do not count on the queue.
 
 While it is on, the server creates runs for queued tasks that can start, in the order above, up to the free
 seats, on a regular tick and whenever a run ends or a task is queued. It leaves queued tasks waiting while

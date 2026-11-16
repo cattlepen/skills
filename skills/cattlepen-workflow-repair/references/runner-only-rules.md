@@ -65,7 +65,11 @@ Git LFS, submodules, harnesses) and prints the problems a decline would list. It
 ## Way 2: check by hand
 
 Without `shepherd`, read the workflow (`get_workflow_editor_snapshot`, or `get_declaration` for a published
-version) and its deliverables (`get_declaration`) and test each rule below.
+version) and its deliverables, and test each rule below. A published workflow pins each agent and
+deliverable as `{version, id, sha256}`. That `id` is the id of the version, not of the library entry, and
+`get_declaration` answers 404 for it: read a pinned document
+with `get_doc{sha256: <the pin's sha256>}`, or find its entry id with `search_library{kind, q: <name>}`
+and call `get_declaration{kind, entry_id, version}`.
 
 Each row was measured: a workflow breaking the rule published on a test installation with `launchable: true`
 and no error diagnostic (`[]` or warnings only), and `shepherd validate` on its export printed the line shown.

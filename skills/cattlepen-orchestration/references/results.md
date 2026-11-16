@@ -34,6 +34,11 @@ pull request, or whether the run ends at deliverables someone applies by hand. T
 - **An outside system** (a ticket, a document, a deployment). Check there, with the person's own tools,
   that the item exists.
 
+A published workflow pins each agent and deliverable as `{version, id, sha256}`. That `id` is the id of
+the version, not of the library entry, and `get_declaration` answers 404 for it: read a pinned document
+with `get_doc{sha256: <the pin's sha256>}`, or find its entry id with `search_library{kind, q: <name>}`
+and call `get_declaration{kind, entry_id, version}`.
+
 ## Record the evidence
 
 In the state file, next to the task: the run id, the evidence (pull request URL and merge commit, or the

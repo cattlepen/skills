@@ -52,10 +52,10 @@ Measured facts:
    a version the runner refuses stays in the version list for good.
 6. **Publish, when the request needs a published fix.** A request such as "it will not publish, fix it" or
    "its runs vanish, fix it" is only met by a published version, so publish without asking again; ask first
-   only when the user asked for a diagnosis, when the fix changes what the workflow does beyond removing the
-   fault, or when they must choose between fixes (the rule in `../SKILL.md`). All dependencies published:
-   `publish_version{kind: "workflows", entry_id, version: N+1, base_revision}`. Any draft binding: the
-   publication plan (`save-validate-publish.md`, 4.1).
+   only when the user asked for a diagnosis or when the fix would change a route, prompt or output that
+   already worked; routing a value that had no route is part of the fix (the rule in `../SKILL.md`).
+   All dependencies published: `publish_version{kind: "workflows", entry_id, version: N+1, base_revision}`.
+   Any draft binding: the publication plan (`save-validate-publish.md`, 4.1).
 7. **Check the tasks and report them.** Read every task of the workflow (`list_tasks{workflow_id}`) and put
    each in the report:
    - `workflow_version: null` (unpinned): `resolved_version` is now N+1, and the next start runs it. Measured.

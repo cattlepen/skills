@@ -96,7 +96,12 @@ The directory layout:
 
 ## Checking by hand, without the CLI
 
-Walk the published YAML (`get_declaration`) and confirm each line:
+A published workflow pins each agent and deliverable as `{version, id, sha256}`. That `id` is the id of
+the version, not of the library entry, and `get_declaration` answers 404 for it: read a pinned document
+with `get_doc{sha256: <the pin's sha256>}`, or find its entry id with `search_library{kind, q: <name>}`
+and call `get_declaration{kind, entry_id, version}`.
+
+Walk the published YAML (`get_declaration`) and its pinned documents, and confirm each line:
 
 - [ ] every switch's `on` field is `required: true`, `type: string`, with an `enum`, in the
       deliverable the switch consumes;

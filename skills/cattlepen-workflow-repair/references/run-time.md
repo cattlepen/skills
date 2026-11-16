@@ -28,7 +28,11 @@ for good were not seen.
   name), `awaiting_answer`, `answer_recorded`, `run_halted`, `run_completed`. From source also
   `node_failed` (reason `<code>: <message>`), `run_declined`, `dispatch_failed`.
 - Node ids in events are the UUIDs in each node's `id`; map them to node names with
-  `get_declaration{kind: "workflows", entry_id, version}` of the run's version.
+  `get_declaration{kind: "workflows", entry_id: <the task's workflow_id>, version}` of the run's version.
+- A published workflow pins each agent and deliverable as `{version, id, sha256}`; that `id` is the
+  id of the version, not of the library entry, and `get_declaration` answers 404 for it. Read a pinned
+  document with `get_doc{sha256: <the pin's sha256>}`, or find its entry id with
+  `search_library{kind, q: <name>}` and call `get_declaration{kind, entry_id, version}`.
 
 ## 8. The run halted
 
@@ -121,7 +125,7 @@ When an answer is refused:
 - The server does not check the answer's shape. An answer the runner rejects (not an object, not matching
   the deliverable, malformed `answers`) leaves the wait open at the same address, and no reason reaches the
   tools. If the wait is still listed after you answered, check the shape against the gate's deliverable
-  (`get_declaration`) and answer again.
+  (`get_doc` with its pin's `sha256`; see "Reading a run") and answer again.
 
 Time limits: a gate's `timeout_s` (`null` waits forever) and an escalation's `timeout_s` end the wait by
 failing the node (`signal.timeout` "no signal on topic <topic> within <n>s", `agent.escalation_timeout`),

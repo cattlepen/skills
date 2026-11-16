@@ -46,13 +46,15 @@ Call `whoami` (account, `self_hosted`, `seat_count`: how many runs of the accoun
 once, one seat each), `list_runners` (connected runners and the runs they hold), `read_api_operation` with
 `GET /runners` and `query: {project_id}` (each runner key that counts for the project: `status`, `running`,
 `max_parallel_runs`, `enabled_harnesses`), `read_api_operation` with `GET /accounts/{id}/settings`
-(`exhaust_queue`, `queued_ready`), `list_tasks` for the project and `list_runs` with
+(`exhaust_queue`, `queued_ready`; a plain member gets 403 `access_denied`, and then queue execution is
+unknown: start runs yourself, never rely on the queue), `list_tasks` for the project and `list_runs` with
 `statuses: ["pending","active","cancelling"]`. Open `references/model.md` for what each field means and how
 they combine into capacity. Then read where the workflow leaves its change: the last nodes of the version
-the tasks will run (`get_declaration`), or a completed run's deliverables (`references/results.md`).
+the tasks will run (`get_declaration` with the task's `workflow_id`; a pin's `id` inside is no entry id,
+see `references/results.md`), or a completed run's deliverables.
 
 Done when you can say how many runs can be placed now, whether queued tasks start by themselves
-(`exhaust_queue`), which runs hold seats, and where a change ends up: merged into the start branch, a pull
+(`exhaust_queue`, or unknown after a 403), which runs hold seats, and where a change ends up: merged into the start branch, a pull
 request, a pushed branch, or a deliverable only.
 
 ### 2. Plan the order

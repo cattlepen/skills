@@ -39,8 +39,10 @@ fault.
   of the workflow), publishing the fix is part of the request: a fixed draft changes nothing for the user.
   Publish it, then report exactly what was published, which tasks now run it (those without a version
   pin) and which do not (pinned tasks, named, with what moving each pin would take). Ask first only when
-  the request was to diagnose or explain, when the fix changes what the workflow does beyond removing the
-  fault, or when the choice between several fixes is the user's.
+  the request was to diagnose or explain, or when the fix would change a route, prompt or output that
+  already worked. Giving a value that has no route a route is part of removing the fault: send it where
+  an existing value of the same meaning goes, else to the workflow's `cancel` node (add one if it has
+  none), publish, and name that choice in the report as one the user can change in a new version.
 - **Ask before you answer a wait for someone.** An answer moves a person's run; it stays their decision.
 - **Do not start runs to test a fix** unless the user asks. They spend the user's model usage and can change
   their repository.

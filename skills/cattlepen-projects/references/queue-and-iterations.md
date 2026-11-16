@@ -72,7 +72,10 @@ Read the account setting:
 ```
 
 It returns `{exhaust_queue, queued_ready}`; `queued_ready` counts queued tasks the server would
-start now if seats allowed. While `exhaust_queue` is `false`, queued tasks wait for someone to
+start now if seats allowed. A plain member cannot read it: measured with role `member`
+(`issue_own_key`, `start_run`, `view_account`), it answers 403 `access_denied` "the account grants no
+right to this action". Then whether queued tasks start by themselves is unknown: tell the user, and
+expect runs to be started by hand. While `exhaust_queue` is `false`, queued tasks wait for someone to
 start them (`start_run`), however ready they are. `PATCH /accounts/{id}/settings` with
 `{"exhaust_queue": true}` makes the server create runs for ready queued tasks at once, as far as
 the account's runner seats allow, and keep doing so as seats free up. Only an account owner (the
