@@ -1,0 +1,8 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: qa_report
+format: json
+fields:
+  result: {type: string, required: true, enum: [pass, fail]}
+  summary: {type: string, required: true}
+  screenshots: {type: array, items: {type: string}}

@@ -1,0 +1,7 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: design_review
+format: json
+fields:
+  decision: {type: string, required: true, enum: [approve, changes]}
+  notes: {type: string, required: true}

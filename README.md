@@ -8,13 +8,38 @@ by both.
 
 | Skill | Use it to |
 | --- | --- |
-| `cattlepen-workflow-authoring` | design, write, validate and publish workflows, agents and deliverables |
-| `cattlepen-projects` | set up a project: its repositories, tasks, iterations and runners |
-| `cattlepen-workflow-repair` | fix a workflow that will not save, publish or launch, or a run that was declined, halted or is parked |
-| `cattlepen-orchestration` | drive a chain of tasks through pipelines: queue, start, watch, answer parked questions, confirm results |
+| `cattlepen-workflow-authoring` | design, write, validate, publish and prove a new workflow with its agents and deliverables, or change what an existing one does; ships example workflows and two scripts (build a bundle from files, write an exported version out for the runner's validator) |
+| `cattlepen-projects` | set up a project so its tasks can start: the account, repositories and how runners reach them, tasks with their repository choice and input files, iterations, runner keys and members |
+| `cattlepen-workflow-repair` | find the real cause of a refused save or publish, a `launch_problem`, a run that stays pending, vanished, halted, loops or delivered the wrong result, fix it and prove the fix |
+| `cattlepen-orchestration` | carry several tasks through their runs: plan the order, write task text a pipeline can run alone, queue or start, watch, answer waits, retry or cancel, confirm each result where it lands |
 
-> **Status:** the skills are placeholders. Their instructions are being written; until then
-> each `SKILL.md` holds only its name and description.
+> **Status:** all four skills are written and were checked against a running Cattlepen
+> installation and the runner's own validator. Each `SKILL.md` holds the rules and the steps;
+> details sit in its `references/`.
+
+## How the four fit together
+
+| The request | Open |
+| --- | --- |
+| "Build a workflow that ...", "add a review step to our workflow" | `cattlepen-workflow-authoring` |
+| "My workflow will not publish", "the run vanished", "it halted at ..." | `cattlepen-workflow-repair` |
+| "Set up a project for these repositories", "why will this task not start?" (no run yet) | `cattlepen-projects` |
+| "Run these five tasks and tell me when they are merged", "answer the gate" | `cattlepen-orchestration` |
+
+The skills hand over to each other by name: authoring sends a refused or stuck workflow to repair,
+and each one sends project and runner setup to projects and the driving of many runs to
+orchestration.
+
+The authoring skill reports how far a workflow got on a five-rung ladder, and only a rung the
+server (or the runner's validator) confirms counts:
+
+1. **Draft saved clean**: `validate_workflow` returns no error.
+2. **Published with every pin**: `list_versions` shows it published, `launchable: true`.
+3. **Runner rules checked**: `shepherd validate` is clean, or every rule only the runner enforces
+   was checked by hand.
+4. **Task ready, runner online**: a task with its repository and inputs, no `launch_problem`, and a
+   runner online that can take it.
+5. **Trial run completed**: a run reached the end and delivered what the workflow promises.
 
 The skills call Cattlepen MCP tools by their bare names (for example `start_run`), so they work
 whatever name each harness gives the server. Connect the MCP server separately (see
@@ -125,6 +150,8 @@ Uninstall with `claude plugin uninstall cattlepen@cattlepen-skills` or
 
 ```text
 skills/<skill>/SKILL.md            the skills, one copy for both harnesses
+skills/<skill>/references/         detail a SKILL.md opens when one of its steps needs it
+skills/<skill>/scripts/            Python 3 standard-library helpers the steps call
 .claude-plugin/plugin.json         Claude Code plugin manifest
 .claude-plugin/marketplace.json    Claude Code marketplace "cattlepen-skills" (plugin source "./")
 .codex-plugin/plugin.json          Codex plugin manifest

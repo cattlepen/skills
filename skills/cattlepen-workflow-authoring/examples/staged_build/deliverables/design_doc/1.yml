@@ -1,0 +1,10 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: design_doc
+format: markdown
+fields:
+  slug: {type: string, required: true}
+sections:
+  - {title: Core loop, level: 2}
+  - {title: Controls, level: 2}
+  - {title: Acceptance criteria, level: 2, description: "Numbered, each checkable by the tester without a human."}

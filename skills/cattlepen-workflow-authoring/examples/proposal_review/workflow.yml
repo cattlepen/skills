@@ -1,0 +1,51 @@
+schema_version: 2
+id: REPLACE_WITH_ENTRY_ID
+name: proposal_review
+agents:
+  strategist: {version: 1}
+deliverables:
+  brief: {version: 1}
+  proposal: {version: 1}
+  review: {version: 1}
+inputs: [brief]
+outputs: [proposal]
+entry: draft
+nodes:
+  draft:
+    type: agent
+    label: Draft the proposal
+    agent: strategist
+    runtime: {harness: claude-code, effort: high}
+    consumes:
+      brief: $input
+    produces: [proposal]
+    next: approve
+  approve:
+    type: human_gate
+    label: Owner reviews the proposal
+    prompt: "Read the proposal on the run's Results tab (node draft). Approve it to finish the run. Reject it with a note that says what to change: the note goes back to the strategist, who rewrites the proposal. After two rewrites, a third reject stops the run."
+    consumes:
+      proposal: draft
+    produces: [review]
+    timeout_s: null
+    next: decide
+  decide:
+    type: switch
+    label: Approved?
+    consumes:
+      review: approve
+    on: decision
+    routes:
+      approve: done
+      reject: revise
+  done:
+    type: end
+  give_up:
+    type: cancel
+    label: Rejected after two rewrites
+reworks:
+  revise:
+    resume_from: draft
+    feedback: {node: approve, deliverable: review}
+    max_reworks: 2
+    on_exhausted: give_up

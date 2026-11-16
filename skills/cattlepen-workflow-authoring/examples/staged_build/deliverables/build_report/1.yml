@@ -1,0 +1,7 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: build_report
+format: json
+fields:
+  summary: {type: string, required: true}
+  entry_file: {type: string, required: true}

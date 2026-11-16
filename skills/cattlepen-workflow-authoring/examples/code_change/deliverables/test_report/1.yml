@@ -1,0 +1,7 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: test_report
+format: json
+fields:
+  result: {type: string, required: true, enum: [pass, fail]}
+  summary: {type: string, required: true}

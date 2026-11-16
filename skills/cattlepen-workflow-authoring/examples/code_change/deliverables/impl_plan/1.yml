@@ -1,0 +1,10 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: impl_plan
+format: markdown
+fields:
+  summary: {type: string, required: true}
+sections:
+  - {title: Approach, level: 2, description: "The binding decisions, and the alternatives rejected with the reason."}
+  - {title: Files, level: 2}
+  - {title: Tests, level: 2, description: "Which test proves each behaviour change."}

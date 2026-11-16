@@ -1,0 +1,10 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: proposal
+format: markdown
+fields:
+  summary: {type: string, required: true}
+sections:
+  - {title: Options, level: 2, description: "Three to seven options, each with its size and its main risk."}
+  - {title: Recommendation, level: 2}
+  - {title: Not recommended, level: 2}

@@ -1,0 +1,112 @@
+schema_version: 2
+id: REPLACE_WITH_ENTRY_ID
+name: staged_build
+agents:
+  designer: {version: 1}
+  design_reviewer: {version: 1}
+  builder: {version: 1}
+  tester: {version: 1}
+deliverables:
+  concept: {version: 1}
+  design_doc: {version: 1}
+  design_review: {version: 1}
+  playable: {version: 1}
+  build_report: {version: 1}
+  qa_report: {version: 1}
+  review: {version: 1}
+inputs: [concept]
+outputs: [playable]
+entry: design
+nodes:
+  design:
+    type: agent
+    label: Write the design
+    agent: designer
+    runtime: {harness: claude-code, effort: high}
+    consumes:
+      concept: $input
+    produces: [design_doc]
+    next: review_design
+  review_design:
+    type: agent
+    label: Review the design
+    agent: design_reviewer
+    runtime: {harness: claude-code, effort: high}
+    consumes:
+      concept: $input
+      design_doc: design
+    produces: [design_review]
+    next: design_ok
+  design_ok:
+    type: switch
+    label: Design approved?
+    consumes:
+      design_review: review_design
+    on: decision
+    routes:
+      approve: build
+      changes: redesign
+  build:
+    type: agent
+    label: Build
+    agent: builder
+    runtime: {harness: claude-code, effort: high}
+    consumes:
+      design_doc: design
+    produces: [playable, build_report]
+    next: test
+  test:
+    type: agent
+    label: Automated playtest
+    agent: tester
+    runtime: {harness: claude-code, effort: medium}
+    consumes:
+      design_doc: design
+      playable: build
+      build_report: build
+    produces: [qa_report]
+    next: qa_ok
+  qa_ok:
+    type: switch
+    label: Playtest passed?
+    consumes:
+      qa_report: test
+    on: result
+    routes:
+      pass: play
+      fail: rebuild
+  play:
+    type: human_gate
+    label: Owner plays the build
+    prompt: "Open the playable page and the playtest report among the run's results (nodes build and test). Approve to finish the run with this build. Reject with a note saying what feels wrong: the note goes back to the builder. After three rebuilds, the next reject stops the run."
+    consumes:
+      playable: build
+      qa_report: test
+    produces: [review]
+    timeout_s: null
+    next: play_ok
+  play_ok:
+    type: switch
+    label: Owner approves?
+    consumes:
+      review: play
+    on: decision
+    routes:
+      approve: done
+      reject: rebuild
+  done:
+    type: end
+  give_up:
+    type: cancel
+    label: Build rejected after three rebuilds
+reworks:
+  redesign:
+    resume_from: design
+    feedback: {node: review_design, deliverable: design_review}
+    max_reworks: 2
+    on_exhausted: build
+  rebuild:
+    resume_from: build
+    feedback: {node: test, deliverable: qa_report}
+    max_reworks: 3
+    on_exhausted: give_up

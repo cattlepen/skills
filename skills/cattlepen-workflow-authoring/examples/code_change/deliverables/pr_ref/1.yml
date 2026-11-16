@@ -1,0 +1,7 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: pr_ref
+format: json
+fields:
+  url: {type: string, required: true}
+  branch: {type: string, required: true}

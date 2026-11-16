@@ -1,0 +1,321 @@
+# Code reference
+
+Every code below is copied from the server's or the runner's source, or from a reply on a test installation.
+**M** marks a code seen in a reply there; the others are read from source. Messages are templates: `<x>` is
+filled in. Use this page to look a code up; the symptom pages say what to do about the common ones.
+
+## 1. Server diagnostics (save, `validate_workflow`, publish, publication plan)
+
+Shape: `{code, path, message, severity}`; `severity` is `error` (blocks publishing) or `warning`.
+When they run:
+
+- **On save** (`save_authoring`, `apply_workflow_operations`): parsing and field rules, then graph rules.
+  No pin lookup and no checks across documents, which is why an apply reply can say `[]` on a workflow that
+  does not validate.
+- **On validate, publish and plan:** all of the above plus pin resolution, then the checks that need the
+  pinned documents (switch fields, bundle completeness). With draft bindings, validate checks the whole set
+  a plan would publish, including the dependencies' own diagnostics.
+- Each stage runs only when the earlier one has no error, so `pin.unresolved` and `switch.*` never appear
+  next to structural errors.
+
+### Any document
+
+| code | sev | message | |
+|---|---|---|---|
+| `yaml.parse` | E | the parser's text: unknown key (it lists the allowed ones), wrong type, unknown variant, missing field; or `unknown node type "<t>" (expected agent, dynamic_group, inline, switch, human_gate, end or cancel)` | M |
+| `doc.too-large` | E | `document is <n> bytes; the limit is 1048576 bytes` | |
+| `doc.unsupported-schema-version` | E | `unsupported workflow schema_version <n> (supported: 2)`; agents and deliverables: `(supported: 1)` | |
+| `doc.invalid-name` | E | `invalid workflow name "<n>"` / `invalid name "<k>"` (names are lowercase letters, digits and `_`, starting with a letter, at most 64 characters) | |
+| `doc.id-mismatch` | E | `document id <doc> does not match <workflow\|agent\|deliverable> <id>` | |
+| `doc.name-mismatch` | W | `document name "<n>" differs from <kind> name "<row>"; publishing adopts it` | |
+| `doc.empty-draft` | E | `the draft has no declaration` | |
+
+### Workflow: fields and links
+
+| code | sev | message |
+|---|---|---|
+| `name.collision` | E | `"<k>" names both a node and a rework` |
+| `pin.invalid-version` | E | `"<k>" pins version <v> (versions run from 1 to 32767)` |
+| `node.duplicate-id` | E | `id <uuid> is already used by node "<prev>"` |
+| `node.missing-id` | W | `node has no id yet` (the editor refuses a new node without an id; an imported draft may lack them, and publishing mints the missing ones) |
+| `link.unknown-node` | E | `entry names unknown node "<e>"`, `consumes from unknown node "<src>"`, `next names unknown node "<n>"`, `route targets unknown node or rework "<t>"`, `resume_from names unknown node "<n>"`, `on_exhausted names unknown node "<n>"`, `feedback names unknown node "<n>"` |
+| `link.unknown-deliverable` | E | `"<d>" is not a pinned deliverable` (in `inputs`, `outputs`, `consumes`, `produces`, rework feedback) |
+| `link.unknown-agent` | E | `"<a>" is not a pinned agent` |
+| `input.duplicate` | E | `input names must be unique` |
+| `input.undeclared-options` | E | `options must name a declared input` |
+| `graph.undeclared-input` | E | `consumes "<d>" from $input, which the workflow does not declare among its inputs` |
+| `graph.unconsumed-input` | W | `input "<d>" is consumed by no node` |
+| `validate.optional-binding-unsupported` | E | `optional bindings are not supported for switch selectors or $input` |
+| `pin.unused` | W | `agent "<k>" is pinned but never used` / `deliverable "<k>" is pinned but never used` (M) |
+| `settings.legacy-field` | W | `settings.<f> is no longer used: each agent node names its own runtime, and the field is dropped on the next save` |
+
+### Workflow: node rules
+
+| code | sev | message |
+|---|---|---|
+| `agent.no-harness` | E | `agent node names no runtime harness` (M) |
+| `agent.unknown-harness` | E | `unknown harness "<h>" (expected one of: claude-code, codex, cursor-cli, opencode)` |
+| `agent.unknown-effort` | E | `effort "<e>" is not on the <harness> scale (<efforts>)` |
+| `agent.effort-without-harness` | E | `` runtime sets `<field>` but names no harness to apply it to `` |
+| `agent.invalid-model` | E | `model is 1 to 128 characters with no whitespace or control characters` |
+| `agent.legacy-model` | W | `` the node-level `model` is no longer used: set `runtime` instead; the field is dropped on the next save `` |
+| `agent.escalation-missing-max-rounds` | E | `` escalation declares no `max_rounds` `` |
+| `agent.escalation-invalid-max-rounds` | E | `` escalation `max_rounds` is 0; a round budget starts at 1 `` |
+| `agent.escalation-invalid-timeout` | E | `` escalation `timeout_s` is <t>; it is a finite number above zero `` |
+| `agent.escalation-unknown-field` | E | `` unknown escalation field "<f>" (expected `max_rounds` or `timeout_s`) `` |
+| `inline.run-empty` | E | `` inline run declares neither `profile` nor `script` `` |
+| `inline.run-ambiguous` | E | `` inline run declares both `profile` and `script`; it carries exactly one `` |
+| `inline.script-nul` | E | `script text carries an embedded NUL (U+0000), which cannot ride an argv argument` |
+| `inline.script-too-large` | E | `script text is <n> bytes; must be under 131072 bytes (the per-argument argv limit)` |
+| `gate.invalid-timeout` | E | `` human gate `timeout_s` is 0; a wait starts at 1 second, and `null` waits indefinitely `` |
+| `switch.single-consume` | E | `a switch consumes exactly one deliverable` |
+| `switch.empty-routes` | E | `a switch declares at least one route` |
+| `dynamic-group.invalid-limit` | E | `limit must be positive` |
+| `dynamic-group.invalid-source` | E | `for_each must name a node and a deliverable it produces` |
+| `dynamic-group.invalid-template` | E | `template must be an agent, inline or human_gate node` (the runner then refuses a `human_gate` template, see section 5) |
+| `dynamic-group.template-control` | E | `template must not carry next` |
+| `rework.resume-not-agent` | E | `resume_from must name an agent node, "<n>" is <type>` |
+| `rework.feedback-not-produced` | E | `node "<n>" does not produce "<d>"` |
+| `rework.missing-budget` | E | `rework has no max_reworks and settings.max_rework_iterations is not set` |
+
+### Workflow: graph rules
+
+| code | sev | message |
+|---|---|---|
+| `graph.entry-terminal` | E | `entry "<e>" is a terminal node` |
+| `graph.unreachable-node` | E | `node "<k>" is not reachable from entry` (M) |
+| `graph.unreachable-rework` | E | `no reachable switch routes into rework "<k>"` (M) |
+| `graph.no-success-path` | W | `no end node is reachable — every run can only cancel or halt` |
+| `graph.cycle` | E | `cycle through "<t>" — loops are only expressible as reworks` |
+| `graph.unconsumed-deliverable` | W | `"<d>" produced by "<p>" is never consumed` (M) |
+| `graph.binding-not-dominated` | E | `"<c>" cannot consume from itself` / `"<c>" is reachable without "<src>" having run — the binding is not guaranteed on every path` |
+| `graph.unproduced-output` | E | `output "<d>" is produced by no node` |
+| `graph.output-not-dominated` | E | `end node "<end>" is reachable without "<d>" having been produced — the output is not promised on every success path` |
+| `rework.shared-head` | E | `reworks "<a>" and "<b>" share resume_from "<n>"` |
+| `rework.trigger-not-downstream` | E | `switch "<s>" routes into "<k>" but is not reachable from resume_from "<n>"` |
+| `rework.feedback-not-dominated` | E | `trigger "<s>" is reachable without feedback producer "<n>" having run` |
+| `rework.overlap` | E | `reworks "<a>" and "<b>" overlap at node "<n>" — loops may not nest or share nodes` |
+
+### Workflow: pins and pinned documents (validate, publish and plan only)
+
+| code | sev | message |
+|---|---|---|
+| `pin.unresolved` | E | `no published version <v> of <agent\|deliverable> "<k>"` (M) |
+| `pin.out-of-scope` | E | `<agent\|deliverable> "<k>" belongs to a project; an account-wide workflow cannot pin it` |
+| `bundle.missing-agent-doc` / `bundle.missing-deliverable-doc` | E | `no agent document provided for pinned agent "<k>"` / `no deliverable document provided for pinned deliverable "<k>"` |
+| `bundle.unpinned-doc` | E | `agent document "<k>" was provided but is not pinned` (import preview) |
+| `switch.unknown-field` | E | `deliverable "<d>" has no field "<f>"` |
+| `switch.field-not-enum` | E | `field "<f>" of "<d>" is not an enum string — a switch requires a closed value set` |
+| `switch.unknown-route-value` | E | `"<v>" is not a value of <d>.<f> (values: <a, b>)` |
+| `switch.unrouted-value` | E | `value "<v>" of <d>.<f> has no route — every value must be routed explicitly` (M) |
+| `dynamic-group.invalid-field` | E | `for_each must select an array of objects` |
+
+### Agent and deliverable documents
+
+| code | sev | message |
+|---|---|---|
+| `agent.invalid-prompt-sha` | E | `prompt.sha256 must be 64 lowercase hex characters` |
+| `agent.unknown-prompt` | E | `prompt doc <sha> is not stored` (publish only) |
+| `deliverable.format-mismatch` | E | `document format <stated> does not match deliverable format <held>` |
+| `deliverable.fields-on-html` | E | `an html deliverable is a whole document with no front matter, so it declares no fields` |
+| `deliverable.sections-on-non-markdown` | E | `sections describe a markdown outline and are only valid on markdown deliverables` |
+| `section.empty-title` | E | `a section needs a title — it is the heading text` |
+| `section.level-out-of-range` | E | `heading level <n> is outside 1..=6` |
+| `section.level-skipped` | E | `<###> cannot follow <#> — an outline deepens one level at a time` |
+| `section.duplicate-title` | E | `duplicate top-level section title "<t>"` / `duplicate section title "<t>" under "<parent>"` |
+| `field.invalid-name` | E | `invalid field name "<n>"` |
+| `field.enum-on-non-string` | E | `enum is only valid on string fields` |
+| `field.empty-enum` | E | `enum must list at least one value` |
+| `field.duplicate-enum-value` | E | `duplicate enum value "<v>"` |
+| `field.items-on-non-array` / `field.items-missing` | E | `items is only valid on array fields` / `array fields must declare items` |
+| `field.fields-on-non-object` / `field.fields-missing` | E | `fields is only valid on object fields` / `object fields must declare fields` |
+
+## 2. Version launchability (`list_versions`)
+
+`launchable` is true when the published declaration has no runtime error. `launch_diagnostics` can hold only
+`agent.no-harness`, `agent.effort-without-harness`, `agent.unknown-harness`, `agent.unknown-effort` and
+`agent.invalid-model`. A draft always reads `launchable: false`. Nothing else is checked: six workflows that
+the runner refuses all read `launchable: true` (M).
+
+## 3. Task level
+
+### `launch_problem` (on the task; only the first problem is reported)
+
+| code | fields | meaning |
+|---|---|---|
+| `process_not_selected` | | the task has no workflow |
+| `no_published_version` | | the workflow has no published version |
+| `version_not_launchable` | `version, diagnostics` | the version the task would run has a runtime error (section 2) |
+| `version_missing` | `version` | the task is pinned to a version that no longer exists |
+| `model_required` | `node_id, node_name, harness` | the harness needs a model and the node names none |
+| `runner_revoked` | `runner_key_id` | the task is pinned to a runner key you can no longer see |
+| `harness_disabled_on_runner` | `runner_key_id, runner_name, node_id, node_name, harness` | the pinned key does not enable that harness |
+| `model_missing_on_runner` | the same plus `model` | the pinned key does not offer that model |
+| `no_runner_supports` | `node_id, node_name, harness, model?` | no runner key you can use enables that harness or offers that model (M) |
+
+It is computed over runner keys whether or not their runner is connected, and over the keys of whoever is
+looking (for a queued task, of whoever queued it). `null` does not mean a runner is online.
+
+### Input readiness (`get_task_readiness` diagnostics)
+
+| code | message |
+|---|---|
+| `input.missing` | `required input has no attachment binding` (M) |
+| `input.invalid` | `content does not match the pinned deliverable schema` (M; names no field) |
+| `input.unknown` | `binding is not declared by the selected workflow version` |
+
+### `queue_wait` (only on a queued task; the first that applies)
+
+| value | meaning |
+|---|---|
+| `running` | the task already has a pending, active or cancelling run |
+| `container` | the task is an epic and never runs |
+| `cancelled_child` | a child task was cancelled |
+| `children` | children are still open |
+| `project` | the task has no project |
+| `project_access_revoked` | the person who queued it is not a project member (self-hosted) |
+| `repository` | the repository selection does not resolve (typically no `repo` in a project with several) |
+| `workflow_deleting` | the workflow is being deleted |
+| `configuration` | `launch_problem` is set |
+| `project_full` | the project's run cap is reached (self-hosted) |
+| `iteration` | anything else, mainly "not in the active iteration" |
+
+`null` with a `queue_position` means it waits its turn. Not shown by `queue_wait`: queue draining switched
+off for the account, no free seat, every candidate runner at its usage limit.
+
+## 4. Run level
+
+### `status`
+
+`pending` (waiting for a runner), `active` (accepted; a parked run is still `active`), `cancelling`,
+`completed`, `halted`, `cancelled`. `declined` exists in the schema but is no longer produced: a permanently
+declined run is deleted.
+
+### `pending_reason` (only while `pending`; `null` before the first placement attempt)
+
+| code | fields | meaning |
+|---|---|---|
+| `runner_offline` | `runner_key_id, runner_name` | the task is pinned to a key whose runner is not connected |
+| `runner_invalid` | `runner_key_id, runner_name, reasons[]` | the pinned runner reports a problem; `reasons[].kind` is `harness_not_reported`, `harness_error`, `runner_too_old` or `no_harness_enabled`, with a `text` |
+| `runner_unsuitable` | `runner_key_id, runner_name, harness, model?` | the pinned runner lacks the harness or model |
+| `runner_busy` | `runner_key_id, runner_name, running, max` | the pinned runner is at its parallel-run cap (M) |
+| `runner_limit_reached` | `runner_key_id, runner_name, harness, resets_at` | the pinned runner is over a provider usage limit |
+| `no_matching_runner` | `harness, model?` | no online runner suits the run; also what you see when every runner is offline |
+| `all_matching_limit_reached` | `harness, resets_at` | every suitable runner is over its usage limit |
+| `all_matching_busy` | `runners` | every suitable runner is at its cap |
+| `account_full` | `used, seat_count` | all seats are in use; `{0, 0}` means no seats, for example no valid self-hosted license |
+| `project_full` | `used, max_concurrent_runs` | the project's run cap (self-hosted) |
+| `project_access_revoked` | | the run's creator is no longer a project member, or the project is gone |
+| `awaiting_source_runner` | `runner_id` | a resumed run waits for the runner that holds the original |
+
+### `halt_kind` (with `status: halted`)
+
+| kind | `outcome.reason` | meaning |
+|---|---|---|
+| `runner` | the runner's text, for example `plan-directed halt` (M) | the runner stopped the run: a `cancel` node was reached (that is what "plan-directed halt" means, with `failed_node` the cancel node), or a node failed |
+| `limit` | the runner's text | a provider usage limit; `limit_wait` says which and when it resets. The server starts a new run by itself (below) |
+| `lease_expired` | none | the runner stopped reporting (crashed, lost its connection) for longer than the lease |
+| `undelivered` | `no runner confirmed the start after <n> attempts` | the run was offered several times (three by default) and never accepted |
+| `no_project` | `task has no project` | |
+| `project_missing` | `project <id> for this run was not found` | |
+| `no_repo` | `task has no repo binding` | the repository selection stopped resolving before dispatch |
+| `input_snapshot_missing` | `run predates validated input snapshots; create a new run` | |
+| `resume.execution-unpinned` | `this agent run predates execution snapshots; start a new run instead of resuming it` | |
+
+Kinds written for workflow deletion (`cancel_lease_expired`, `fleet_quiescence`, `deletion_unclaimed`,
+`deletion_administrative`) come with `status: cancelled`.
+
+A `limit` halt is readmitted automatically, about a minute after `limit_wait.resets_at`, when the halt is
+less than 8 days old, the source runner is connected and not limited, no later run of the task exists and
+(self-hosted) the creator is still a project member. The new run carries `source_run_id` of the halted one.
+A `limit` halt without `resets_at` is never readmitted automatically.
+
+### Run refusals
+
+| call | status | message |
+|---|---|---|
+| `start_run` | 409 | `task.launch_problem` "the task cannot be launched as it is configured", with `problem` (M) |
+| `start_run` | 409 | "task has no repo binding" (M) |
+| `start_run` | 422 | "task inputs are not ready", with the readiness object in `details` (M) |
+| `start_run` | 409 | "task already has a run in progress" |
+| `start_run` | 409 | `task.container` "task <id> is a container and never runs" |
+| `start_run` | 409 | `task.not_ready` "task <id> has <n> open children" |
+| `get_run`, `get_run_events` | 404 | "run with id <id> not found" (M: the run was declined and removed, or never existed) |
+| `answer_wait` | 409 | "run(<id>) is not awaiting an answer at node(<node>)" |
+| `answer_wait` | 409 | "node(<node>) of run(<id>) is awaiting an answer at iteration <i>, attempt <a>, round <r> — not at iteration <i>, attempt <a>, round <r>" |
+| `answer_wait` | 409 | "run(<id>) has no runner" |
+| cancel (`PATCH /runs/{id}`) | 409 | "run <id> is not cancellable in status <status>" |
+| resume (`POST /runs/{id}/resume`) | 409 | "run <id> is <status>, and only a halted run can be resumed", or a `readmission_unavailable` text such as "run <id> names no runner, so there is no worktree to resume from" |
+
+## 5. Runner codes
+
+### Declines: the runner refuses a run before any node starts
+
+A permanent decline deletes the run; a transient one sends it back to `pending` and the server offers it
+again at once. The reason text is not readable through the tools once the run is deleted; it appears in the
+runner's log as `shepherd: run <id> declined — <code>: <message>`.
+
+| code | kind | message (template) or meaning |
+|---|---|---|
+| `bundle.invalid` | permanent | the workflow does not compile: `<stage>: <n> diagnostic(s): <code> [<document> <where>] <message>; ...` (at most five, then `; and <n> more`) |
+| `script.syntax` | permanent | `<where>: the script does not parse: <error>` |
+| `profile.unbound` | permanent | `<n> profile(s) the plan names are not defined at the run's start commit: ...` |
+| `profile.command-missing` | permanent | a profile's command or script is not on the runner's PATH or does not exist |
+| `workspace.unbound` | permanent | for example `the server lists no URL for project '<p>' repo '<r>', and this runner has no binding for it: add [projects.<p>.repos.<r>] to the runner config to bind a checkout of your own` |
+| `workspace.fetch` | transient | cloning or fetching a repository failed for a reason that may pass, such as the network; a clone that cannot succeed (no such repository, no access) is `workspace.unbound` instead, naming the URL and the binding to add |
+| `workspace.lfs-unavailable` | permanent | the repository uses Git LFS and git-lfs is missing or unconfigured on the runner |
+| `workspace.submodule-relative-url` | permanent | a relative submodule URL and no `origin` remote |
+| `input.invalid` | permanent | `$input '<name>' does not match its schema: <n> error(s): ...` or `missing $input payload for '<name>': ...` |
+| `exec-profile.invalid` | permanent | `execution profile must identify agent node '<name>' (<id>) exactly once` |
+| `dispatch.unresolvable` | permanent | `<node> cannot be dispatched: <cause>`, for example `harness '<h>' requires a [<section>] runner configuration` |
+| `bundle.download` | transient | fetching the workflow failed |
+| `bundle.hash-mismatch` | permanent | a fetched document does not match its hash |
+| `capacity.busy` | transient | `All <n> executor processes are still occupied; retry this run.` |
+| `resume.busy`, `accept.timeout` | transient | |
+| `accept.retries-exhausted` | permanent | `declined transiently <n> times in a row by this runner; the latest refusal was <code>: <message>` (after three transient declines; M in a server log) |
+| `runner.internal` | permanent | `the runner failed to execute this run (<type>): <error>` |
+| `resume.*` | permanent | readmissions only, for example `resume.plan-halted` `the run halted itself; pick a node to restart from` |
+
+With several permanent problems the message is `<code>: <message>; <code>: <message>`, cut at 2000
+characters; the first code is the decline's code.
+
+### Compile diagnostics (inside `bundle.invalid`, and printed by `shepherd validate`)
+
+The runner's compiler repeats most server rules under its own codes (`parse.*`, `link.*`, `validate.*`,
+`rework.*`). The ones the server does not apply are in `runner-only-rules.md`. `shepherd validate` adds
+`publish.*` (the server's publish rules, as a local preview) and `script.*` (`script.syntax`,
+`script.unconsumed-input`, `script.undeclared-output`); those never decline a run, except `script.syntax`.
+
+### Node failures (halt reason `node '<name>' failed: <code>: <message>`)
+
+| code | message (template) |
+|---|---|
+| `node.exhausted` | the last attempt's message; the underlying code is `detail.last.code` |
+| `carrier.missing_output` | `declared output '<d>' has no <d>.json in out/`; `markdown output '<d>' has no <d>.md body` |
+| `carrier.invalid_payload` | `output '<d>' does not match its schema: <n> error(s): <d>.<field>: ...`; `output '<d>' lacks section '<heading>' (outline position <n>)`; `output '<d>' (<d>.json) is not parseable`; `output '<d>' is not an object`; `html output '<d>' has fields; its <d>.json must be {}` |
+| `carrier.oversize_signal` | `deliverable '<d>' is <n> bytes serialized (> <limit>...); ...` |
+| `agent.sentinel_missing` | `no SHEPHERD_STATUS: line in the ... result tail or full result after <n> continuation turn(s)` |
+| `agent.session_failed` | `<harness> failed (<subtype>) before emitting SHEPHERD_STATUS:` |
+| `agent.unexpected_escalation` | `` the agent wrote questions.json but node '<node>' declares no escalation block; add `escalation:` to let it ask `` |
+| `agent.malformed_escalation` | `the escalation carrier questions.json <problem>` |
+| `agent.escalation_exhausted` | `the agent asked in round <n> but node '<node>' declares max_rounds: <m>` |
+| `agent.escalation_timeout` | `no escalation answer on topic '<topic>' within <n>s` |
+| `claude.no_envelope` | `claude produced no result envelope (exit code <n>)` |
+| `codex.failed` | `codex session failed (exit code <n>): <text>` |
+| `codex.quota` | `codex account has no quota left: <text>` |
+| `command.not_found` | `executable not found: '<argv0>'` |
+| `profile.missing` / `profile.unknown` | `.shepherd/profiles.yml not found in the checked-out tree` / `profile '<name>' is not defined in .shepherd/profiles.yml; has: <names>` |
+| `signal.timeout` | `no signal on topic '<topic>' within <n>s` (a gate's `timeout_s`) |
+| `map.over-limit` / `map.member_failed` | `map '<id>' sized <n> members over its limit <m> ...` / `map members failed: <ids>` |
+| `node.park_exhausted` / `node.park_churn` | parked past the 48-hour budget / re-parked too often |
+| `node.internal_error` | an unexpected error inside the runner |
+
+Outside this pattern: `plan-directed halt` (a `cancel` node was reached, M) and
+`switch '<node>': value '<v>' of '<field>' has no route and no default`.
+
+### Park codes (the start of `parked_reason`)
+
+`claude.budget`, `codex.budget` (provider usage limits, with `limit_wait`), `codex.rate_limited`,
+`opencode.rate_limited` (short rate limits), `claude.login_required`, `codex.login_required`,
+`cursor_cli.login`, `opencode.auth` (the harness on the runner needs a login; retried every 300 s). Other park
+codes exist.
