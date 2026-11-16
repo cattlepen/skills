@@ -8,7 +8,7 @@ by both.
 
 | Skill | Use it to |
 | --- | --- |
-| `cattlepen-workflow-authoring` | design, write, validate, publish and prove a new workflow with its agents and deliverables, or change what an existing one does; ships example workflows and two scripts (build a bundle from files, write an exported version out for the runner's validator) |
+| `cattlepen-workflow-authoring` | design, write, validate, publish and prove a new workflow with its agents and deliverables, or change what an existing one does; ships example workflows and two scripts (build a bundle from files; check an exported version against the server's hashes and write it out for the runner's validator) |
 | `cattlepen-projects` | set up a project so its tasks can start: the account, repositories and how runners reach them, tasks with their repository choice and input files, iterations, runner keys and members |
 | `cattlepen-workflow-repair` | find the real cause of a refused save or publish, a `launch_problem`, a run that stays pending, vanished, halted, loops or delivered the wrong result, fix it and prove the fix |
 | `cattlepen-orchestration` | carry several tasks through their runs: plan the order, write task text a pipeline can run alone, queue or start, watch, answer waits, retry or cancel, confirm each result where it lands |

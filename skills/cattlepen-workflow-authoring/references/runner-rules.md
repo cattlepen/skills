@@ -46,7 +46,7 @@ node, not at the start.
 
 ## Checking with `shepherd validate`
 
-Where the runner CLI is installed (`shepherd --version` prints a version), `shepherd validate <dir>`
+Where the runner CLI is installed (`shepherd version` prints a version), `shepherd validate <dir>`
 compiles a workflow directory with the runner's own compiler, applies the server's publish rules (`publish.*` codes), and checks each inline
 script: `sh -n` must parse it, it may read only the inputs its node consumes, and it may write only
 `$SHEPHERD_OUT/<name>.json` (and the body file) for a deliverable its node produces
@@ -68,18 +68,31 @@ The directory layout:
   `build_bundle.py <source> --validate-copy <dir>`, which fills the ids and the prompt hash the
   runner's parser requires, and run `shepherd validate <dir>`. On path A the same JSON is the bundle;
   on path B ignore it.
-- **After creating or publishing** (either path), validate what will actually run with the export
-  route (the `cattlepen-workflow-repair` skill ships the same `export_to_bundle.py`). It works on a
-  draft as well as on a published version:
-  1. `get_workflow_editor_snapshot{workflow_id, version}` for its `revision`.
-  2. `export_workflow{workflow_id, version, base_revision: <revision>}`; save the reply unchanged
-     as a JSON file.
-  3. `python3 <skill dir>/scripts/export_to_bundle.py export.json <dir>` writes the layout above
-     (Python 3 standard library only; `<dir>` must not exist yet).
+- **After publishing, when the version came from those local documents.** The `--validate-copy` check
+  above covers the published version on one condition: nothing was changed on the server after the
+  import except what publishing itself rewrites (pins to `{version, id, sha256}`, minted node ids). Any
+  editor action, save or re-import after it voids that; then use the export route. Say in the report
+  that the source documents were validated before import.
+- **For a version that exists only on the server** (changed in the editor, imported by someone else,
+  or a draft), the export route. It works on a draft as well as on a published version (the
+  `cattlepen-workflow-repair` skill ships the same `export_to_bundle.py`):
+  1. `get_workflow_editor_snapshot{workflow_id, version}` for its `revision`, and
+     `list_versions{kind: "workflows", entry_id}` for that version's `declaration_sha`.
+  2. `export_workflow{workflow_id, version, base_revision: <revision>}`. No tool saves a tool result to
+     a file, so write the reply to `export.json` with your harness's file-writing tool: the whole reply,
+     bindings included, unedited. The script is the only thing that may transform it; an export edited
+     or retyped by hand proves nothing about what the server holds.
+  3. `python3 <skill dir>/scripts/export_to_bundle.py export.json <dir> --workflow-sha <declaration_sha>`
+     checks the copy against the hashes the server wrote (each prompt always, each dependency document
+     when the pins carry a hash, as a published version's do, and the workflow document against
+     `--workflow-sha`), refuses a copy that differs, and writes the layout above (Python 3 standard
+     library only; `<dir>` must not exist yet).
   4. Run `shepherd validate <dir>`.
 
-  Measured on the `code_change` example: the export of its imported draft and of its published
-  version both printed `ok: 12 plan node(s)`.
+  Measured on the examples, each reply saved exactly as returned: an imported `proposal_review` draft
+  with its bindings passed the prompt and workflow checks and printed `ok: 6 plan node(s)`; the published
+  `code_change` passed every hash check and printed `ok: 12 plan node(s)`. When
+  a reply is too long to copy whole and exactly, do not shorten it: check by hand (below) and say so.
 
 ## Checking by hand, without the CLI
 
@@ -105,6 +118,6 @@ Walk the published YAML (`get_declaration`) and confirm each line:
 - [ ] no inline node uses `run: {profile: ...}` unless the target repository defines that profile;
 - [ ] every repository the task selects has a `url` the runner can clone or a runner binding.
 
-One of the two checks always happens. Tell the user which one you ran on the published version;
-"checked by hand" is rung 3 only when every line was confirmed, and a report that names neither
+One of these checks always happens. Tell the user which one covers the published version;
+"checked by hand" is rung 3 only when every line was confirmed, and a report that names none
 stops at rung 2.

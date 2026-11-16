@@ -2,13 +2,17 @@
 
 Open this in step 2, and again whenever the conversation was reset or compacted.
 
+The file is a condition of progress, not a note to self. Write it in step 2, before any run starts: with
+nobody watching, it is the only place the plan is visible before it happens. Step 4 starts no run whose task
+is not in it with a slot, and the final report repeats its decisions.
+
 A chain of runs outlives a conversation's context. After a reset you would otherwise have to rediscover
 which tasks belong to the chain, re-read every run's journal from the beginning, and guess which questions
 you already answered and why. Three things in particular cannot be recovered from the server cheaply or at
 all:
 
-- the last journal `seq` you read for each run, which lets `get_run_events(after=<seq>, limit=20)` bring a run up
-  to date from there instead of paging its whole journal again;
+- the last journal `seq` you read for each run, which lets `get_run_events(after=<seq>, limit=20)` bring
+  a run up to date from there instead of paging its whole journal again;
 - why the plan orders tasks as it does (which files they share, which change another needs);
 - what you decided in answers and why, so a later question gets a consistent answer, and so you never post
   a second answer to an address already answered (it is refused with 409).
@@ -23,6 +27,11 @@ state: a run started, a wait answered, a run finished, evidence read.
 # Chain: <short name>          updated <UTC time>
 
 Project: <project id>   Workflow: <name> version <n> (<version id>)
+Where a change lands: <merged into <branch> | pull request | pushed branch | deliverable only>, read from
+<the workflow's last nodes | run <id>'s deliverables>
+What that means: <for example "nothing merges: T2 needs T1's change, so T2 is held until the person merges
+T1; T1 and T3 both edit src/report/cli.py and neither needs the other, so they run together and the person
+reconciles the two changes when merging">
 Capacity when planned: <free seats> seats; runner keys <name running/max_parallel_runs>; queue execution <on|off>
 The person asked: <the request in one line>. Delegated to me: <gates or questions they let me decide, or none>.
 Run budget: <how many runs they agreed to; runs started so far>
@@ -32,7 +41,7 @@ Run budget: <how many runs they agreed to; runs started so far>
 |---|------|---------|-------|-----|
 | 1 | CSV writer | <id> | - | - |
 | 2 | JSON writer | <id> | - | disjoint files with 1 |
-| 3 | --format flag | <id> | 1 and 2 merged | calls both writers |
+| 3 | --format flag | <id> | 1 and 2 merged by the person | calls both writers; the workflow only opens pull requests |
 
 ## Runs
 | task | run id | state | last seq | evidence or next action |

@@ -35,8 +35,8 @@ exact calls.
   exactly as `get_run_waits` gives them.
 - Read the server before each decision. Runs, queues and runners change without you; a value you read ten
   minutes ago is a guess.
-- Keep the chain's state in a file outside the conversation and update it after every change, so a context
-  reset loses nothing (`references/chain-state.md`).
+- No run starts before the chain's state file exists (`references/chain-state.md`): the plan is on disk
+  before anything happens, and is updated after every change, so a context reset loses nothing.
 
 ## Steps
 
@@ -59,14 +59,13 @@ request, a pushed branch, or a deliverable only.
 
 For each pair of tasks ask: does one need the other's change, and do they touch the same files? Apply the
 two rules above to where step 1 found this workflow leaves its change. Independent tasks on disjoint files
-can run together, up to the capacity from step 1. Write the plan into the state file with the reason for
-every "after" and who merges (for example "B after A is merged: B calls the function A adds; this workflow
-only opens a pull request, so the person merges it first"). The task tree can hold a parent until its
-children are done (`references/model.md`, "Task tree"), but done means the child's run completed, not that
-its change merged.
+can run together, up to the capacity from step 1. Write the plan into the state file now, from the template
+in `references/chain-state.md`. The task tree can hold a parent until its children are done
+(`references/model.md`, "Task tree"), but done means the child's run completed, not that its change merged.
 
-Done when every task has a slot (now, after a named task for a stated reason, or held for the person's
-merge) and no slot runs more tasks at once than step 1 allows.
+Done when the state file exists and holds every task with its slot (now, after a named task, or held for
+the person's merge), the reason for each "after", where the workflow leaves its change and what that means
+for tasks that touch the same files, and no slot runs more tasks at once than step 1 allows.
 
 ### 3. Write each task so nobody has to ask
 
@@ -81,9 +80,9 @@ description answers the questions a pipeline agent would otherwise ask.
 
 ### 4. Start
 
-Either queue the tasks and let the server start them in order (only while `exhaust_queue` is on), or call
-`start_run(task_id)` yourself when a task's slot comes. A chain whose steps wait on merges is usually paced
-by hand. `references/model.md` ("Queue or start_run") has both, with the refusals. A refused `start_run`
+Start no run whose task is not in the state file with its slot. Either queue the tasks and let the server
+start them in order (only while `exhaust_queue` is on), or call `start_run(task_id)` yourself when a task's
+slot comes; `references/model.md` ("Queue or start_run") has both, with the refusals. A refused `start_run`
 creates no run. Record each run id in the state file at once.
 
 Done when every task due now has a run that `get_run` shows as `pending` or `active`, recorded in the state
@@ -140,7 +139,8 @@ merge state as the code host reports it.
 ### 9. Report
 
 Report in outcomes: what was delivered or merged (with links), what waits on the person and until when, what
-failed, why, and what you tried, and how many runs you started.
+failed, why, and what you tried, and how many runs you started. Repeat the plan's decisions from the state
+file: the order, the reason for each "after", and what an unmerged change means for the tasks it touches.
 
 Done when the person can act on every open item from the report alone.
 
@@ -159,9 +159,8 @@ Done when the person can act on every open item from the report alone.
 
 ## Final checklist
 
-- [ ] The state file lists every task, its run ids, the last `seq` read, its state and what is owed.
-- [ ] The plan says where the workflow leaves its change, and every "after" has a reason (shared files or
-      a needed change) and names who puts that change on the start branch.
+- [ ] The state file existed before the first run, with every task's slot, the reason for each "after"
+      and where the workflow leaves its change; it now also holds run ids, last `seq`, states, what is owed.
 - [ ] Every task description states goal, expected result, scope, decisions and the done check.
 - [ ] No run sits with `open_waits` above 0 unanswered and not reported.
 - [ ] Every halted run is retried once, reported, or handed to cattlepen-workflow-repair.

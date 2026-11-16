@@ -11,7 +11,7 @@ So before you call a workflow fixed, check these rules. There are two ways.
 ## Way 1: run the runner's validator (preferred)
 
 This needs the `shepherd` command on the machine you work on (it is installed where a runner runs; check
-with `shepherd --version`, which prints a version when it is). It reads a **bundle directory**:
+with `shepherd version`, which prints a version when it is). It reads a **bundle directory**:
 
 ```
 <dir>/workflow.yml
@@ -20,16 +20,26 @@ with `shepherd --version`, which prints a version when it is). It reads a **bund
 <dir>/deliverables/<name>/<version>.yml
 ```
 
-1. `get_workflow_editor_snapshot{workflow_id, version}` for its `revision`.
+1. `get_workflow_editor_snapshot{workflow_id, version}` for its `revision`, and
+   `list_versions{kind: "workflows", entry_id}` for that version's `declaration_sha`.
 2. `export_workflow{workflow_id, version, base_revision: <revision>}`. It works on a draft as well as on a
-   published version, so you can check before publishing. Save the reply, unchanged, as a JSON file.
-3. `python3 <skill dir>/scripts/export_to_bundle.py export.json bundle-dir` writes the layout above
-   (it needs only Python 3, no packages; the output directory must not exist yet).
+   published version, so you can check before publishing. No tool saves a tool result to a file: write the
+   reply to `export.json` with your harness's file-writing tool, whole (bindings included) and unedited.
+   The script is the only thing that may transform it; an export edited or retyped by hand proves nothing.
+3. `python3 <skill dir>/scripts/export_to_bundle.py export.json bundle-dir --workflow-sha <declaration_sha>`
+   checks the copy against the hashes the server wrote (every prompt, every dependency document whose pin
+   carries a hash, and the workflow document), refuses a copy that differs, and writes the layout above
+   (Python 3 standard library only; the output directory must not exist yet).
 4. `shepherd validate bundle-dir`.
 
-This works for any version already on the server. For documents that exist only as local files, before
-anything is created, the `cattlepen-workflow-authoring` skill's `build_bundle.py --validate-copy` writes the
-same layout.
+Measured: the replies of a draft with bindings and of a published version, saved exactly as returned,
+passed the hash checks and validated clean. When a reply is too long to copy whole and exactly, do not
+shorten it: use way 2 and say so in the report.
+
+This works for any version on the server. A version built in the same session from local files that were
+validated before import (the `cattlepen-workflow-authoring` skill's `build_bundle.py --validate-copy`) is
+covered by that check only if nothing changed on the server after the import except what publishing
+rewrites (pins and minted node ids).
 
 A clean bundle prints a summary starting `ok:` and exits 0, for example:
 

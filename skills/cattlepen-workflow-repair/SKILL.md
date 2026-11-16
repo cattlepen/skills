@@ -82,10 +82,11 @@ fault.
    no error.
 
 4. **Check what only the runner checks, on the draft.** Always, for any workflow you changed. Run
-   `shepherd --version`: if it prints a version, export the draft, write it out with
-   `scripts/export_to_bundle.py` and run `shepherd validate` (`references/runner-only-rules.md`, way 1);
-   otherwise test every rule of that page by hand (way 2). Done when `shepherd validate` prints `ok:` or every
-   manual rule passes, and you can say which of the two you did.
+   `shepherd version`: if it prints a version, export the draft, write the reply whole and unedited to a file
+   with your harness's file-writing tool, turn it into a bundle with `scripts/export_to_bundle.py` (which
+   refuses an altered copy) and run `shepherd validate` (`references/runner-only-rules.md`, way 1); otherwise,
+   or when the reply is too long to copy whole, test every rule of that page by hand (way 2). Done when
+   `shepherd validate` prints `ok:` or every manual rule passes, and you can say which of the two you did.
 
 5. **Publish the fix when the request needs it** (the rule above): the publication plan when the draft has
    bindings, `publish_version` otherwise (`references/save-validate-publish.md`, section 4). Then read every
@@ -120,7 +121,7 @@ fault.
 - [ ] A published version was changed only through a new version; node and rework ids were kept.
 - [ ] `validate_workflow` returns no error for every workflow version you touched.
 - [ ] The proof is the same server signal that showed the fault, read after the fix.
-- [ ] The runner-only rules were checked on the draft, by `shepherd validate` when `shepherd --version`
+- [ ] The runner-only rules were checked on the draft, by `shepherd validate` when `shepherd version`
       works, else by hand, and the report says which.
 - [ ] A fix whose outcome needs a published version was published; the report names what was published,
       the tasks that now run it and the pinned tasks that do not.

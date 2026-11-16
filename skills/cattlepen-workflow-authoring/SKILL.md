@@ -86,12 +86,12 @@ example "published; to prove it, a task with a brief attached and a runner onlin
    when to choose each enum value and what to do when work comes back.
 
 4. **Check the runner's rules before creating anything.** This check always happens; only its means
-   depend on the machine. Run `shepherd --version`. If it prints a version, write the documents in the
+   depend on the machine. Run `shepherd version`. If it prints a version, write the documents in the
    source layout of `examples/`, build a local copy with `scripts/build_bundle.py <dir>
    --validate-copy <copy>` (on either path) and run `shepherd validate <copy>`. If it does not, walk
    every item of the hand checklist in `references/runner-rules.md` over the documents.
-   Done when `shepherd validate` prints `ok:`, or every item of the checklist was checked and holds;
-   note which of the two you did.
+   Done when `shepherd validate` prints `ok:` on the copy, or every item of the checklist was checked
+   and holds; note which (step 7 may rest on it).
 
 5. **Create it through the MCP.** Open `references/mcp-tools.md` and take one path:
    - **Path A, a bundle** (a new workflow of any size): build it with this skill's script,
@@ -114,14 +114,19 @@ example "published; to prove it, a task with a brief attached and a runner onlin
    `publish_version` first. For version 2 or later, follow the publishing rule above.
    Done when `list_versions` shows the new version published and `launchable: true` (rung 2).
 
-7. **Check the published version against the runner rules.** Always, by the same means as step 4.
-   With the CLI (`shepherd --version` prints a version), export the version (`export_workflow`), write
-   it out with `python3 scripts/export_to_bundle.py export.json <dir>` and run `shepherd validate <dir>`
-   (`references/runner-rules.md`). Without it, walk every item of that page's hand checklist against
-   the published YAML from `get_declaration`.
-   Done when either is clean (rung 3). Your final message says which of the two was done on the
-   published version; a report that cannot say it stops at rung 2. A failure means a new draft
-   (`create_version`), a fix and a new publish.
+7. **Check the published version against the runner rules.** Always, by one of these
+   (`references/runner-rules.md`, "Checking with `shepherd validate`"):
+   - built in this session from local documents that step 4 validated, and nothing changed on the
+     server since the import except what publishing rewrites (pins, minted ids): that check covers it;
+   - otherwise, with the CLI: `export_workflow`, the reply written whole and unedited to a file with your
+     harness's file-writing tool, `python3 scripts/export_to_bundle.py export.json <dir> --workflow-sha
+     <declaration_sha from list_versions>` (it refuses a copy that differs from the server's hashes; an
+     edited export proves nothing), then `shepherd validate <dir>`;
+   - without the CLI, or when the export is too long to copy whole: every item of the hand checklist
+     against the published YAML from `get_declaration`.
+   Done when the one used is clean (rung 3) and your final message names it ("source documents
+   validated before import", "export validated", "checked by hand"); a report that cannot name it stops
+   at rung 2. A failure means a new draft (`create_version`), a fix and a new publish.
 
 8. **Prove it.** Open `references/proving.md`. Create or pick a task in the project with `repo`
    set, attach every required input with `attach_task_file`, read `get_task_readiness`, the task's
@@ -143,8 +148,9 @@ example "published; to prove it, a task with a brief attached and a runner onlin
 - [ ] The workflow and every pinned dependency are published; `list_versions` says `launchable`.
 - [ ] For a second or later version, the report names the unpinned tasks that now run it, and a
       change of behaviour the user did not ask for was asked about before publishing.
-- [ ] The runner rules were checked on the published version, by `shepherd validate` or by every item
-      of the hand checklist, and the final message says which; without that, the report says rung 2.
+- [ ] The runner rules were checked for the published version (source documents validated before an
+      unchanged import, an unedited export validated, or every item by hand), and the final message
+      says which; without that, the report says rung 2.
 - [ ] The task has `repo`, its inputs attached and `ready: true`, `launch_problem: null`, a runner
       online.
 - [ ] The user was told the highest rung reached and what the next one needs.
