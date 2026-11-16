@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "cattlepen": {
+      "url": "https://mcp.cattlepen.ai",
+      "oauth": {
+        "client_id": "mcp"
+      }
+    }
+  }
+}

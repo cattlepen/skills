@@ -9,15 +9,24 @@
   "homepage": "https://cattlepen.ai/docs/",
   "repository": "https://github.com/cattlepen/skills",
   "license": "Apache-2.0",
-  "keywords": ["cattlepen", "workflows", "mcp", "agents"],
+  "keywords": [
+    "cattlepen",
+    "workflows",
+    "mcp",
+    "agents"
+  ],
   "skills": "./skills/",
+  "mcpServers": "./.codex-mcp.json",
   "interface": {
     "displayName": "Cattlepen",
     "shortDescription": "Author, repair and run cattlepen workflows",
     "longDescription": "Skills for working with cattlepen through its MCP server: design, validate and publish workflows, agents and deliverables; set up projects with their repositories, tasks, iterations and runners; repair workflows and runs that are refused, halted or parked; and drive a chain of tasks through pipelines to confirmed results.",
     "developerName": "Cattlepen",
     "category": "Developer Tools",
-    "capabilities": ["Read", "Write"],
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
     "websiteURL": "https://cattlepen.ai/",
     "defaultPrompt": [
       "Create a cattlepen workflow for this change",

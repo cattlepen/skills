@@ -42,15 +42,11 @@ server (or the runner's validator) confirms counts:
 5. **Trial run completed**: a run reached the end and delivered what the workflow promises.
 
 The skills call Cattlepen MCP tools by their bare names (for example `start_run`), so they work
-whatever name each harness gives the server. Connect the MCP server separately (see
-[Connect the Cattlepen MCP server](#connect-the-cattlepen-mcp-server)); this plugin ships
-skills only.
+whatever name each harness gives the server. The plugin also connects the Cattlepen cloud MCP
+server, `https://mcp.cattlepen.ai`; you sign in once (see
+[Connect the Cattlepen MCP server](#connect-the-cattlepen-mcp-server)).
 
 Tested with Claude Code 2.1.325 and codex-cli 0.156.1.
-
-While this repository is private, `marketplace add cattlepen/skills` clones it with your own Git
-credentials. If the short form fails, give the clone URL instead, for example
-`git@github.com:cattlepen/skills.git`.
 
 ## Install in Claude Code
 
@@ -102,6 +98,17 @@ Install each harness one way only. A plugin plus plain copies loads every skill 
 with the `cattlepen:` prefix and once without.
 
 ## Connect the Cattlepen MCP server
+
+**Installed as a plugin, on Cattlepen cloud:** the plugin brings the server; only sign in. In Claude
+Code run `/mcp`, choose `plugin:cattlepen:cattlepen` and authenticate. In Codex run
+`codex mcp login cattlepen`.
+
+**Self-hosted Cattlepen.** In Claude Code, set `CATTLEPEN_MCP_URL` to your installation's MCP URL
+before starting it; the plugin's server uses it instead of the cloud URL. Codex does not expand
+variables in a plugin's server, so on a self-hosted installation install the skills as plain
+skills for Codex (above) and add the server yourself with the commands below.
+
+**Plain skills, or a server added by hand:**
 
 | Installation | MCP URL |
 | --- | --- |
@@ -156,6 +163,8 @@ skills/<skill>/scripts/            Python 3 standard-library helpers the steps c
 .claude-plugin/marketplace.json    Claude Code marketplace "cattlepen-skills" (plugin source "./")
 .codex-plugin/plugin.json          Codex plugin manifest
 .agents/plugins/marketplace.json   Codex marketplace "cattlepen-skills" (plugin source "./")
+.mcp.json                          the MCP server for Claude Code (URL overridable with CATTLEPEN_MCP_URL)
+.codex-mcp.json                    the MCP server for Codex (referenced from .codex-plugin/plugin.json)
 scripts/check.sh                   offline checks for skills and manifests
 ```
 
