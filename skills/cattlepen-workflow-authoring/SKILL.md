@@ -1,6 +1,6 @@
 ---
 name: cattlepen-workflow-authoring
-description: "Design, write, validate, publish and prove Cattlepen workflows, agents (with their prompts) and deliverables through the Cattlepen MCP server, so that the workflow actually runs: bundle import or editor operations, the publication plan, the rules only the runner checks, a ready task and a trial run. Use when the user wants a new workflow, wants to change what an existing one does (add a step, an agent, a review, a route, a prompt), or wants one ported or reviewed. Not for a workflow or run that is refused, stuck or wrong, such as a save or publish refused, a launch_problem, or a run pending, vanished, halted or looping (cattlepen-workflow-repair); not for projects, repositories, tasks and runners (cattlepen-projects); not for queueing, starting and watching runs of several tasks (cattlepen-orchestration)."
+description: "Design, write, validate, publish and prove Cattlepen workflows, agents (with their prompts) and deliverables through the Cattlepen MCP server, so that the workflow actually runs: bundle import or editor operations, the publication plan, the rules only the runner checks, a ready task and a trial run. Use when the user wants a new workflow, wants to change what an existing one does (add a step, an agent, a review, a route, a prompt), wants a second agent inside a step (pair an agent node with an adviser, reviewer, guard or watcher partner), or wants one ported or reviewed. Not for a workflow or run that is refused, stuck or wrong, such as a save or publish refused, a launch_problem, or a run pending, vanished, halted or looping (cattlepen-workflow-repair); not for projects, repositories, tasks and runners (cattlepen-projects); not for queueing, starting and watching runs of several tasks (cattlepen-orchestration)."
 ---
 
 # Cattlepen workflow authoring
@@ -29,6 +29,14 @@ that no server tool checks, so a published workflow can still be refused or stop
   the node on the runner (`claude-code`, `codex`, ...). Every decision is a required string enum field
   that a switch routes, every value routed. Every loop is a rework: a declared route back to an
   earlier agent node, with a budget of passes and a node to continue at when it is spent.
+- A partner (an agent node's `pair`: an adviser, a reviewer, a guard or a watcher beside the node's
+  own agent) has its own runtime on `claude-code` or `codex`, and its agent is pinned in `agents:`
+  like the node's own. A starter partner is a template: fill its section marked
+  `FILL IN BEFORE PUBLISHING` with the project's rules before it is published, because a partner is
+  worth what its prompt knows. Choose each partner's model with `references/patterns.md`
+  ("Partners"): a reviewer at least as strong as the executor, an adviser for what it knows. A guard
+  is not a sandbox (`references/patterns.md`, "A guard is not a sandbox"), and nobody answers a
+  partner's question during the run.
 - A run changes only the repository its task names (`repo`). The project's other repositories it may
   read (`readonly_repos`) are reset after every node, so nodes pass state only in deliverables.
 - In editor operations every new node and every new rework carries an `id` that is a fresh UUID.
@@ -51,7 +59,7 @@ that no server tool checks, so a published workflow can still be refused or stop
 | 1. Draft saved clean | every entry saved; `validate_workflow` returns no `error` diagnostic |
 | 2. Published with every pin | `list_versions` shows the version with `published_at`, `launchable: true` and empty `launch_diagnostics`; every pinned agent and deliverable is published |
 | 3. Runner rules checked | `shepherd validate` is clean on the published documents, or every item of the written list in `references/runner-rules.md` was checked by hand (say which) |
-| 4. Task ready, runner online | a task in a project with its `repo` set: `get_task_readiness` says `ready: true` with no diagnostics (the input files), the task's `launch_problem` (why a start would be refused) is `null`, and a runner that counts for the project is online with every harness and model the workflow uses |
+| 4. Task ready, runner online | a task in a project with its `repo` set: `get_task_readiness` says `ready: true` with no diagnostics (the input files), the task's `launch_problem` (why a start would be refused) is `null`, and a runner that counts for the project is online with every harness and model the workflow uses, its partners' included |
 | 5. Trial run completed | `get_run` reports `completed`, and the deliverables in the run's events are what the workflow promised |
 
 End every piece of work by telling the user the highest rung reached and what the next one needs (for
@@ -74,14 +82,21 @@ example "published; to prove it, a task with a brief attached and a runner onlin
 2. **Design the graph** before any YAML. Open `references/patterns.md`. Write the node list down
    for the user: for each node its kind, what it consumes and produces, where it goes next; for each
    switch its field and the target of every value; for each rework its head, feedback and exhaustion
-   target. Agree on it when the request is open to interpretation.
+   target. Agree on it when the request is open to interpretation. For a second agent inside a step
+   (advice, a review, a guard on its actions, notes while it works), read "Partners" in
+   `references/patterns.md` before choosing the mode and each model, and say for each partner what it
+   knows that the executor cannot.
    Done when every switch routes every enum value, every rework has head, feedback and
    `on_exhausted`, and every consumed deliverable is produced on every path to its consumer.
 
 3. **Write the deliverables, agents and workflow.** Open `references/dialect.md` for the documents
    and `references/runtime-contract.md` before writing a prompt or an inline script: it says what each
    node receives and must write, which the prompt must not repeat. For anything larger than three
-   nodes, start from the closest example in `examples/`.
+   nodes, start from the closest example in `examples/`. For partners, write `pair` from "Partners" in
+   `references/dialect.md`; a partner's prompt says who the partner is and what the project requires,
+   and how it talks with the executor is the runner's contract ("Partners" in
+   `references/runtime-contract.md`), which the prompt does not restate. Start a partner from the
+   starters in `examples/paired_change`.
    Done when each document uses only keys the dialect lists, and each prompt says what good work is,
    when to choose each enum value and what to do when work comes back.
 
@@ -141,7 +156,12 @@ example "published; to prove it, a task with a brief attached and a runner onlin
 - [ ] Every new agent and deliverable has a name that belongs to this workflow; the user knows what
       was reused.
 - [ ] `validate_workflow` has no error; every switch routes every value of a required enum field.
-- [ ] Every agent node has a `runtime` with a harness and a model the runners offer, or no model.
+- [ ] Every agent node has a `runtime` with a harness and a model the runners offer, or no model; so
+      does every partner, on `claude-code` or `codex`.
+- [ ] Every partner's agent is pinned; no starter partner's prompt still holds
+      `FILL IN BEFORE PUBLISHING`; each partner's model follows "Partners" in `references/patterns.md`
+      (no `pair.same-model` warning); a review's `verdict` is routed by a switch, and nothing in the
+      design waits for an answer to a partner's question.
 - [ ] Every new node and rework in an editor action had a UUID `id`.
 - [ ] Every inline script writes every declared output on every path, markdown and html with their
       `.json` file too, and parses with `sh -n`.
