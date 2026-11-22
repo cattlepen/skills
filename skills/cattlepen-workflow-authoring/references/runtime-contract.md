@@ -83,8 +83,9 @@ Your prompt is sent verbatim (no templating), followed by the runner's own text:
   the head, the sentence naming the feedback files; after a refused attempt,
   `Your previous attempt was refused: <code>: <message>`.
 - **When the node declares `escalation`:** how to ask a person (below).
-- **When the node declares partners (`pair`):** what the executor may do with them, and with a guard,
-  what a denied call means ([Partners](#partners)).
+- **When the node declares partners (`pair`):** what the executor may do with them, with a guard what a
+  denied call means, and with a watcher what a note is ([Partners](#partners)). A runner whose
+  operator turned on the runner's own guard adds the guard's part to every agent node.
 
 So a prompt does not repeat paths, file names, field types or the status line. It says what the role
 is and what good work looks like, what goes into each field, **when to choose each enum value** (that
@@ -128,12 +129,14 @@ prompt also becomes a question to a person.
 ## Partners
 
 An agent node's `pair` (`dialect.md`, "Partners") adds second agents beside the node's own agent, the
-*executor*, inside the same node. This section says what the runner does with an `advise`, a `review`
-and a `guard` partner: what each agent is told, what a partner can do, how work passes between them,
-and what a reader of the run sees. Which mode to use, and on which model, is in `patterns.md`,
-"Partners".
+*executor*, inside the same node. This section says what the runner does with an `advise`, a `review`,
+a `guard` and a `watch` partner: what each agent is told, what a partner can do, how work passes
+between them, and what a reader of the run sees. It also says what the runner's own guard, which a
+runner's operator can turn on for every node, does to a node. Which mode to use, and on which model,
+is in `patterns.md`, "Partners".
 
-<!-- UNFINISHED(watch): the `watch` partner in this introduction. -->
+This section was written on 2026-11-22 from unreleased versions of Cattlepen and the runner, and was
+checked against no running installation.
 
 ### What each agent is told
 
@@ -141,21 +144,21 @@ Each prompt has two layers. The author writes the partner's prompt as an agent d
 adds its own text for the mode after it, as it does after the executor's prompt:
 
 - **The partner** receives its agent's prompt, then the runner's text: its role in the mode, the task the
-  executor was given (for an adviser and a reviewer, the executor's prompt as written, the task's title
-  and description, and where the executor's inputs are; for a guard, the task's title and description
-  only), what to look at (a plan, a question, the change, or the one call to judge), the rules it works
-  by, and the shape of its reply.
+  executor was given (for an adviser, a reviewer and a watcher, the executor's prompt as written, the
+  task's title and description, and where the executor's inputs are; for a guard, the task's title and
+  description only), what to look at (a plan, a question, the change, the one call to judge, or a
+  digest of the work since the watcher last looked), the rules it works by, and the shape of its reply.
 - **The executor** receives, after its usual additions, what it may do with an adviser (`advise`, below),
-  in a revise turn the reviewer's findings and how to answer them (`review`, below), and with a guard,
-  on the first turn of each attempt, what a denied call means (`guard`, below). Its first turn is not
-  told that a review follows.
+  in a revise turn the reviewer's findings and how to answer them (`review`, below), with a guard, on
+  the first turn of each attempt, what a denied call means (`guard`, below), and with a watcher, on the
+  same turn, what a note is (`watch`, below). Its first turn is not told that a review follows.
 
 So a partner's prompt says who the partner is, what it cares about and what the project requires:
 conventions where they differ from what the repository shows, policies, facts about the environment.
-For a guard, that prompt is the policy. It never restates the reply shape, the checkpoint, where the
-files are or that it must not edit: the runner says all of that, and a second version in the prompt can
-only disagree with it. The executor's prompt does not explain its partners either; the runner tells it
-what it can do.
+For a guard, that prompt is the policy. It never restates the reply shape, the checkpoint, the digest,
+where the files are or that it must not edit: the runner says all of that, and a second version in the
+prompt can only disagree with it. The executor's prompt does not explain its partners either; the
+runner tells it what it can do.
 
 ### What a partner can do
 
@@ -164,14 +167,16 @@ what it can do.
   whatever the runner's codex settings say about approvals and sandboxing. It works in the executor's
   working directory and reads the repository, the executor's inputs and the files the runner prepares
   for it. It cannot change a file, run the project's tests or run any command that writes, so a partner
-  prompt asks it to read and judge, never to run the tests or fix anything. A guard on `claude-code`
-  also keeps no session and reads none of the machine's user, project or local Claude Code settings,
-  and it reads files only inside the working directory: not the executor's inputs, not its temporary
-  directory.
-- **It starts fresh for each call.** Each review, each adviser call and each guard decision is a new
-  session that remembers nothing of the earlier ones; what it needs from them is in its prompt. The one
-  exception: a reviewer whose reply is not a valid verdict is resumed once, in the same session, and
-  asked for the verdict again.
+  prompt asks it to read and judge, never to run the tests or fix anything. A guard or a watcher on
+  `claude-code` also keeps no session and reads none of the machine's user, project or local Claude
+  Code settings, and it reads files only inside the working directory: not the executor's inputs, not
+  its temporary directory.
+- **It starts fresh for each call.** Each review, each adviser call, each guard decision and each
+  watcher wake is a new session that remembers nothing of the earlier ones; what it needs from them is
+  in its prompt. The one exception: a reviewer whose reply is not a valid verdict is resumed once, in
+  the same session, and asked for the verdict again.
+- **It is not guarded.** Neither the workflow's guard nor the runner's own guard judges a partner's
+  calls: they judge the executor's.
 - **It signs in as an agent node of its harness does** on the runner: the runner's Claude Code
   credentials and settings for the partner's agent name, or its codex configuration. Its model and
   effort are its declared `runtime`, or the task's partner override, fixed when the run is accepted; a
@@ -262,14 +267,15 @@ what it can do.
 
 ### `guard`: each call is judged before it runs
 
-What follows holds for a guard on an executor that runs on `claude-code`; the guard itself may run on
-`claude-code` or `codex`. A guard is not a sandbox (`patterns.md`, "A guard is not a sandbox").
-
-<!-- UNFINISHED(codex-executor): what the runner does with a guard on an executor that runs on codex. -->
+A guard sits on an executor that runs on `claude-code` or `codex`; the guard itself may run on either.
+What follows holds on a `claude-code` executor. On a `codex` executor the guard detects and stops, and
+what differs there is at the end of this subsection. A guard is not a sandbox (`patterns.md`, "A guard
+is not a sandbox").
 
 - **When.** Before each tool call of the executor, a sub-agent's included, Claude Code asks the runner,
   and the call waits for the answer. Every turn is guarded: the first, a continued one, one resumed with
-  answers and a revise turn alike. The runner first tries to allow the call by its own rule (below);
+  answers, a watcher's resume and a revise turn alike. The runner first tries to allow the call by its
+  own rule (below);
   every call the rule does not allow goes to the guard.
 - **What the guard is given.** Each decision starts a new guard process (read-only and fresh, as above),
   whose input is its agent's prompt (the policy), then the runner's rules for a decision, then the
@@ -315,8 +321,17 @@ What follows holds for a guard on an executor that runs on `claude-code`; the gu
   not routable: a node whose executor ended `blocked` completes when its outputs are valid, so a
   workflow that must know that a denied action left the task undone asks for it in a deliverable field
   a switch routes.
-
-  <!-- UNFINISHED(tmpdir-location): where the private temporary directory is, and its limits. -->
+- **The private temporary directory.** On macOS and Linux it is a short directory directly under the
+  system's `/tmp` (`shd-` and a name derived from the attempt, at most 40 bytes in all, so a unix
+  socket can still be bound in a directory made inside it); on Windows it is inside the run's own
+  folder. It belongs to the attempt: every turn of the attempt finds it with what the earlier turns
+  left in it, also after a wait for a person or a restart of the runner, and another attempt gets
+  another one. The runner makes it readable by its own user only; an attempt that finds something
+  else at its path (a file, a link, another user's directory) fails with `guard.tmpdir_refused` and is
+  retried, in a new directory. It is deleted with the run's state, never before, but the operating
+  system's own cleaning of `/tmp` can remove its files, or the directory, while an attempt waits a
+  long time for a person: macOS deletes what has not been touched for three days, systemd's default
+  ages `/tmp` out after ten, and a `/tmp` held in memory is empty after a reboot.
 
 - **Reads the runner allows without the guard.** A `Read`, `Grep` or `Glob` is allowed by the runner's
   rule, with no model and nothing published, when its target, followed through every link, lies inside
@@ -354,7 +369,125 @@ What follows holds for a guard on an executor that runs on `claude-code`; the gu
   again. In a dynamic group each member is guarded on its own, with its own deny counts and temporary
   directory.
 
-<!-- UNFINISHED(watch): the `watch` subsection goes here. -->
+**On a `codex` executor: detect and stop.** Codex also asks the runner before each tool call, and a call
+the guard denies never runs. But codex lets a call run when its hook gives no answer it can read, so the
+runner also reads the executor's stream and checks every call it shows against an allow the guard gave.
+What differs from the above:
+
+- **What it guarantees, and what it does not.** A denied call never runs. A call that got past the hook
+  (the hook never started, or something on the runner machine, such as a shell start-up file that
+  prints, spoiled its answer) is found only after it ran: the turn is stopped and the node fails at once
+  with `guard.unwitnessed`, saying that the call has already run, but the call's effect stays. On
+  `claude-code`, a hook that cannot answer blocks the call instead.
+- **Every call goes to the guard.** Codex reads, searches and lists files with commands, and the
+  runner's rule allows only Claude Code's own file tools, so every call is a decision of the guard, with
+  its latency.
+- **A denied call** comes back to the executor as the tool's output, `Command blocked by PreToolUse
+  hook: Denied by the workflow's guard: <reason>`, and the first turn's section says so. A call the
+  runner could not be asked about is blocked by codex itself: it has no `deny` note and does not count
+  toward the breaker.
+- **No interactive sessions.** A guarded Codex executor cannot open an interactive terminal session and
+  runs every command with its input closed, because input typed into such a session would reach no
+  guard. Work that needs one (an interactive database shell, a REPL fed line by line) cannot be done
+  there.
+- **A web search can fail the node.** On a Codex model whose web search is the provider's own hosted
+  tool (`gpt-5.5` and `gpt-5.4` among them), the search reaches no hook, so a guarded executor that
+  searches fails its node with `guard.unwitnessed`, the reason naming the hosted search. Run such an
+  executor on a model whose search goes through codex's own tool, which the guard decides like any
+  call, or have the runner's operator turn Codex's web search off in the runner's codex settings.
+- **The repository's own codex hooks.** Arming the guard makes codex run, without asking, the hooks the
+  repository under work declares for codex.
+- **A sub-agent's calls** reach the guard but never the executor's stream, so the stream cannot show
+  them; the guard still decides them.
+- **The rest is as on `claude-code`:** the request and its attached files, the deadline, the breaker,
+  the `deny` notes, the private `$TMPDIR` and the first-turn section.
+- **On a Windows runner** a guarded Codex node does not run: the runner declines the run before any
+  node starts (`dispatch.unresolvable`, naming the platform). The server does not know that rule, so it
+  deletes the run, and the task can be placed on the same runner again (`runner-rules.md`).
+
+### The runner's own guard
+
+A runner's operator can give the runner a guard of its own: `[guard] policy_file` in the runner's
+configuration names the policy, the guard's prompt, and `harness` (`claude-code` or `codex`), `model`
+and `effort` its runtime. Every attempt of every agent node of every run that runner executes then
+passes through it, on a `claude-code` or a `codex` executor, whatever the workflow declares: nothing
+in a workflow turns it off, and the operator's policy outranks the workflow's. It is the mechanism of
+`guard` above with the same limits (the rule, the deadline, the breaker, the witness, the private
+`$TMPDIR`, the first-turn section, detect and stop on `codex`), and it is not a sandbox either.
+
+- **With the workflow's guard as well**, a call goes to the runner's guard first and to the workflow's
+  only once the runner's has allowed it; a deny from either is the call's answer. Each has its own
+  deadline, and the breaker counts the denies of both together. A read the runner's rule allows asks
+  neither.
+- **The executor is told which guard denied:** `Denied by the runner's guard: <reason>` or `Denied by
+  the workflow's guard: <reason>`, and its first-turn section quotes the lines its node can receive. So
+  an executor whose workflow declares no partner can still be told about a guard, and be stopped by one.
+- **Where it cannot sit.** With its own guard, a runner declines a run with an agent node on
+  `cursor-cli` or `opencode`, or on `codex` on a Windows runner, before any node starts
+  (`dispatch.unresolvable`): it never runs a node unguarded.
+- **Its tokens** are a share of their own (`runner_guard`, below), counted in the node's totals.
+
+Its policy is a file on the runner, not an agent of the workflow, so an author can neither read nor
+change it. Ask the runner's operator what it forbids, and state the same rules to the executor, as for
+a workflow's guard (`patterns.md`, "State a guard's policy to the executor too").
+
+### `watch`: notes while the work runs
+
+A watcher sits on an executor that runs on `claude-code`; the watcher itself may run on `claude-code`
+or `codex`. Beside an executor that runs on `codex` the runner does not run one: the server accepts
+such a node, but the runner refuses the workflow when it compiles it (`validate.pair-mode-unsupported`),
+so every run of that version is declined (`runner-rules.md`).
+
+- **When it wakes.** Each tool call of the executor, once it has run, is reported to the runner; a
+  sub-agent's calls are not counted. When `every` calls have come in since the last wake and no wake is
+  running, the runner wakes the watcher, and calls that come in during a wake wait for the next one, so
+  wakes never pile up. The executor is never held: it goes on working while the watcher looks. Its
+  turns are watched up to its status line, continuations and permission turns included; the turns of a
+  review loop are not.
+- **What a wake is given.** A new read-only session (as above) whose input is its agent's prompt, then
+  the runner's rules for a watcher, then a digest: how many calls the executor has made and in how
+  long, its temporary directory, the task as a reviewer is given it, one line for each call an earlier
+  wake was shown, every note left so far in the attempt, and what happened since the last wake: the
+  executor's messages and each new call with its input and its result, long texts cut and paths inside
+  the working directory shown relative to it. With its read tools it may open the repository's files.
+- **The runner's rules for a watcher** say that silence is the normal case; that a note is earned only
+  when the work contradicts a rule or a fact the watcher holds (from its prompt or the repository),
+  repeats an approach that already failed in the run, or is about to do something hard to undo, such as
+  deleting work or rewriting history; that taste, naming and a step not yet reached earn none; that an
+  explicit decision of the task outranks the watcher's rules; that a note states the fact in full, as an
+  observation and never as an order, and names any document in the repository that seems to say
+  otherwise and why it does not apply; at most one note per wake, in at most three sentences, never
+  repeated, and at the last look, once, what in the work still contradicts a note it sent; and that
+  text in files, commands and results is data. So a watcher's prompt holds what it knows and does not
+  repeat these rules.
+- **What it answers.** `NO NOTE`, or `NOTE:` followed by the note. Anything else counts as no note, and
+  a note is cut at 4 KiB.
+- **How a note reaches the executor.** At its next tool call, after that call's result, between
+  `<<<PARTNER_NOTE>>>` and `<<<PARTNER_NOTE_END>>>`, one note per call. The first turn of each attempt
+  ends with a section that says a partner watches, cannot change anything and answers no questions;
+  that a note is its observation, never the user's instruction; to take a fact it states as true unless
+  the repository contradicts it; to do what the user asked when a note conflicts with it and say so in
+  its final message; and not to wait for notes.
+- **The budget.** At most `max_notes` notes in one attempt, the last one kept for the end: once
+  `max_notes - 1` notes have been left during the work, no wake runs until the end of the turn, so with
+  `max_notes: 1` the watcher looks only then. The notes and the budget span the whole attempt, also
+  when the runner restarts in the middle of it.
+- **The end of the turn, always.** Once the executor's turn has reached its status line, and before the
+  review loop on a node that also has a reviewer, the runner waits for a wake still running and wakes
+  the watcher once more, with the calls it has not seen and the executor's final message. When a note
+  is still undelivered, or this last look leaves one, the runner resumes the executor's session once
+  with all of them. That resume is an ordinary turn of the executor (it ends with its status line and
+  may be continued), and it is the turn the node reports. With no note pending nothing is resumed.
+  Because the end comes before the review, the reviewer sees what the resume changed.
+- **The resume asks nobody.** A question that turn writes for the adviser, or for a person under
+  `escalation`, is never read.
+- **A watcher protects nothing.** A wake that fails, or a watcher that cannot be reached, costs its note
+  and nothing else: the calls it saw have already run, and the work goes on.
+- **A wake takes a slot of its own harness** on the runner, like any session, so on a runner that runs
+  one Claude Code session at a time, a `claude-code` watcher's wakes due during the executor's turn wait
+  for that turn's end, and their notes reach the executor only in the resume after it.
+- **Nothing inside a turn is replayed.** A turn that runs again (a new attempt, a resumed run) is
+  watched again. In a dynamic group each member has its own watcher, cadence and note budget.
 
 ### A partner's questions
 
@@ -368,6 +501,8 @@ wait appears in `get_run_waits`.
 - A reviewer's questions reach the executor only as points to leave as they are, and they land in the
   verdict deliverable and in the loop's last `verdict` note.
 - A guard asks none: its reason goes to the executor and into its `deny` note.
+- A watcher asks none and answers none: the executor is told not to wait for it, and its notes are
+  observations the executor weighs alone.
 
 So a workflow that wants a person to decide routes the verdict through a switch to a human gate, or
 declares `escalation` so the executor can ask for itself. Ask the executor to list the choices it made
@@ -384,25 +519,24 @@ alone in a deliverable: its final message is not one.
   | `advice` | after each adviser call | the advice's first line (`(no advice)` when there is none), then `questions:` and one `- <question>` line each | `partner: advise`, `call` (`plan`, or the question's number from 1), `questions` (a count) |
   | `verdict` | after each review that returned a valid verdict | `round <n>: <ship or revise> · <b> blocker · <m> major · <mi> minor · <q> question(s)` | `partner: review`, `round`, `verdict`, and the counts `blocker`, `major`, `minor`, `questions` |
   | `verdict` | once, when the review loop ends | `<outcome> after <n> review(s)`, then `open findings:` with one `- <severity> <file>:<line>: <claim>` line each, and `questions:` with one `- <point>` line each | `partner: review`, `outcome`, `rounds` |
-  | `deny` | after each call the guard denied, and each call Claude Code blocked because the guard's hook gave no answer; never for an allow, nor for a read the runner's rule allowed | `<tool> <command or path>: <reason>`, the first part cut at 200 characters and the reason at 500 | `partner: guard`, `guard: workflow`, `tool` (the first part), `reason`, and the counts `in_a_row` and `denied` (the attempt's denies so far) |
+  | `deny` | after each call a guard denied, and each call Claude Code blocked because the guard's hook gave no answer; never for an allow, nor for a read the runner's rule allowed, nor for a call codex blocked because the runner could not be asked | `<tool> <command or path>: <reason>`, the first part cut at 200 characters and the reason at 500 | `partner: guard`, `guard` (`workflow` or `runner`: the guard that denied; for a block no single guard decided, `runner` when the runner's own guard is on), `tool` (the first part), `reason`, and the counts `in_a_row` and `denied` (the attempt's denies so far, both guards together) |
+  | `note` | each note the watcher leaves: when it reaches the executor at a tool call, or before the resume that carries it; never for a wake that left no note or failed | the note | `partner: watch`, `delivery` (`hook` or `resume`) |
 
-  A guard publishes nothing for an allow. Each decision that starts the guard adds the notes of its own
-  session (`session`, `say` and the like) with `partner: guard`.
-
-  <!-- UNFINISHED(runner-guard): the notes of the runner's own guard, beside `guard: workflow`. -->
-  <!-- UNFINISHED(watch): the watcher's note kinds. -->
+  A guard publishes nothing for an allow. Each decision that starts a guard, the runner's own included,
+  and each watcher wake add the notes of their own session (`session`, `say` and the like) with
+  `partner: guard` or `partner: watch`.
 
 - **Tokens.** The node's `node_completed` counts every agent of the node together: `token_usage`,
-  `cache_read` and `cache_write` include each partner call, a reviewer's second ask and every guard
-  decision included. Beside them, `usage_by_role` splits the same tokens into shares, one per role,
-  harness and model: `role` is `executor` for the node's own agent and the partner's mode for a partner
-  (`advise`, `review`, `guard`); `harness` is the one the tokens ran on, a partner's own; `model` is the
-  one the harness reported for them, so a sub-agent on another model is a share of its own, and it is
-  absent when it cannot be named. The shares add up to the three counters. A role that spent nothing has
-  no share (a read the rule allowed costs no tokens), a node that spent no tokens sends no
-  `usage_by_role`, and a failed node reports neither.
-
-  <!-- UNFINISHED(runner-guard): the role of the runner's own guard in `usage_by_role`. -->
+  `cache_read` and `cache_write` include each partner call, a reviewer's second ask, every guard
+  decision and every watcher wake included. Beside them, `usage_by_role` splits the same tokens into
+  shares, one per role, harness and model: `role` is `executor` for the node's own agent, the partner's
+  mode for a partner (`advise`, `review`, `guard`, `watch`) and `runner_guard` for the runner's own
+  guard; `harness` is the one the tokens ran on, a partner's own; `model` is the one the harness
+  reported for them, so a sub-agent on another model is a share of its own, and it is absent when it
+  cannot be named. The shares add up to the three counters. A role that spent nothing has no share (a
+  read the rule allowed costs no tokens), a node that spent no tokens sends no `usage_by_role`, and a
+  failed node reports neither. With the runner's own guard on, every agent node it guarded carries a
+  `runner_guard` share, a node without partners included, and its totals are higher by that share.
 
 - **Failures.** An adviser's or a reviewer's session fails like an agent session of its harness, with
   the same codes and under the same rule. What parks an executor parks the node here too (a provider
@@ -414,7 +548,13 @@ alone in a deliverable: its final message is not one.
   runs but returns no valid verdict is not a failure: the loop ends `partner_unavailable` and the node
   completes. A guard never parks the node nor fails it with its harness's codes: whatever goes wrong
   with a decision is a deny (`guard`, above), and the node fails only through the breaker
-  (`guard.breaker`) or the witness (`guard.unwitnessed`), at once.
+  (`guard.breaker`) or the witness (`guard.unwitnessed`), at once. Apart from those, a guarded attempt
+  fails, and is retried, only when its private temporary directory cannot be made or is not private
+  (`guard.tmpdir_refused`, checked when the attempt starts and when a restarted runner takes it up
+  again). A watcher
+  never fails the node: a wake whose session fails or cannot start leaves no note, and the work goes
+  on. Only its last look at the end of the turn can stop the node: when that session meets what parks
+  a session (a provider usage limit, a lost login), the node parks.
 
 ## Inline nodes
 
