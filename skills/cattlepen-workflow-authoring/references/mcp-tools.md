@@ -225,7 +225,9 @@ request: {path: {id}, body: {workflow_version: <n>}}}`.
 
 1. `create_version{kind: "workflows", entry_id}` opens the next draft, seeded from the current
    version (or returns the open draft). Read it with `get_workflow_editor_snapshot` for that version.
-2. Change it with path B. Keep every existing node `id`: task overrides are keyed by node id.
+2. Change it with path B. Keep every existing node `id`: task overrides are keyed by node id, a
+   partner's by node id and mode, so a task loses its override for a partner the new version removes
+   or moves to another mode. A partner (`pair`) is part of its node's value in an operation.
 3. A changed prompt or deliverable is a new version of that entry: `create_version` on it,
    `get_authoring`, `save_authoring`, publish it, then point the workflow's pin at the new version.
    In a seeded draft a pin is `{version, id, sha256}`; that whole object is the `before`.
