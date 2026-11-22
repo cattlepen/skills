@@ -1,0 +1,8 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: change
+format: json
+fields:
+  summary: {type: string, required: true}
+  files: {type: array, required: true, items: {type: string}}
+  open_choices: {type: array, required: true, items: {type: string}}
