@@ -33,10 +33,13 @@ Event types, in the order a run produces them:
 - `run_dispatched` (a runner was offered the run), `run_started` (it accepted);
 - `node_started` (`node_id`, `iteration`, `attempt`), then `node_event` rows while it works: the agent's
   messages (`payload.kind` `say`), its commands (`bash`), the model in use (`binding`), `publish`, and
-  `delta` ("changed N files"). An agent node with partners (an adviser, a reviewer) adds their rows:
-  each carries `payload.partner`, the partner's mode, and the runner adds `ask` (the agent's question to
-  its adviser), `advice` (the answer, and any questions it left for a person) and `verdict` (one per
-  review, and one with the outcome when the review loop ends);
+  `delta` ("changed N files"). An agent node with partners (an adviser, a reviewer, a guard) adds their
+  rows: each carries `payload.partner`, the partner's mode, and the runner adds `ask` (the agent's
+  question to its adviser), `advice` (the answer, and any questions it left for a person), `verdict`
+  (one per review, and one with the outcome when the review loop ends) and `deny` (a call the guard
+  denied, which did not run: the tool, the reason and the attempt's deny counts; an allowed call adds
+  no row);
+  <!-- UNFINISHED(watch): the watcher's rows. -->
 - `node_completed`, whose `payload.deliverables` is a list of `{name, value}`. It also carries the node's
   tokens, every agent of the node together: `token_usage` (uncached input and output), `cache_read`,
   `cache_write`.
