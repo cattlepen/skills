@@ -115,8 +115,10 @@ both sources, not measured). Test them by hand the same way:
   `nodes.<node>.pair.watch`, or `nodes.<group>.template.pair.watch`). The server accepts a `watch` beside
   an executor on `claude-code` or `codex`; the runner runs one only beside `claude-code`, and its message
   says so and tells you to remove the mode from the node or run the node's executor on `claude-code`.
-  Test: every node or template with `pair.watch` has `runtime.harness: claude-code`. Fix: a new version
-  with that node's executor on `claude-code`, or without the `watch` (`codes.md`, section 5).
+  Test: for every node or template with `pair.watch`, the harness the runner resolves for its executor
+  is `claude-code`: its `runtime.harness`, or `claude-code` when it names none (a version without one
+  also draws the server's `agent.no-harness` and cannot launch). Fix: a new version with that node's
+  executor on `claude-code`, or without the `watch` (`codes.md`, section 5).
 
 ### Checks that depend on the runner machine
 
