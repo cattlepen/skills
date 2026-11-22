@@ -160,8 +160,9 @@ example "published; to prove it, a task with a brief attached and a runner onlin
       does every partner, on `claude-code` or `codex`.
 - [ ] Every partner's agent is pinned; no starter partner's prompt still holds
       `FILL IN BEFORE PUBLISHING`; each partner's model follows "Partners" in `references/patterns.md`
-      (no `pair.same-model` warning); a review's `verdict` is routed by a switch, and nothing in the
-      design waits for an answer to a partner's question.
+      (no `pair.same-model` warning); a review's `verdict` declares exactly the fields in "Partners"
+      of `references/dialect.md` (only the runner checks them) and is routed by a switch, and nothing
+      in the design waits for an answer to a partner's question.
 - [ ] Every new node and rework in an editor action had a UUID `id`.
 - [ ] Every inline script writes every declared output on every path, markdown and html with their
       `.json` file too, and parses with `sh -n`.
