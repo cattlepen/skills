@@ -322,17 +322,20 @@ is not a sandbox").
   workflow that must know that a denied action left the task undone asks for it in a deliverable field
   a switch routes.
 - **The private temporary directory.** On macOS and Linux it is a short directory directly under the
-  system's `/tmp` (`shd-` and a name derived from the attempt, at most 40 bytes in all, so a unix
-  socket can still be bound in a directory made inside it); on Windows it is inside the run's own
-  folder. It belongs to the attempt: every turn of the attempt finds it with what the earlier turns
-  left in it, also after a wait for a person or a restart of the runner, and another attempt gets
-  another one (a node started again from its first attempt in the same run finds that attempt's
-  directory again). The runner makes it readable by its own user only; an attempt that finds something
-  else at its path (a file, a link, another user's directory) fails with `guard.tmpdir_refused` and is
-  retried, in a new directory. It is deleted with the run's state, never before, but the operating
-  system's own cleaning of `/tmp` can remove its files, or the directory, while an attempt waits a
-  long time for a person: macOS deletes what has not been touched for three days, systemd's default
-  ages `/tmp` out after ten, and a `/tmp` held in memory is empty after a reboot.
+  system's `/tmp`, with every link in that path resolved: `shd-` and a name derived from the attempt,
+  30 bytes in all on macOS and 22 on Linux while `/tmp` resolves to its usual place, so a unix socket
+  can still be bound in a directory made inside it. On Windows it is inside the run's own folder. It
+  belongs to the attempt: every turn of the attempt finds it with what the earlier turns left in it,
+  also after a wait for a person or a restart of the runner, and another attempt, another rework
+  iteration or another member of a dynamic group gets another one (a node restarted at its first
+  attempt of the same iteration, in the same run, finds that attempt's directory again). The runner
+  makes it readable by its own user only. An attempt that finds at its path something that is not a
+  directory, or is a link, or, on macOS and Linux, a directory of another user or with a mode other
+  than `0700`, fails with `guard.tmpdir_refused` and is retried, in a new directory. It is deleted
+  with the run's state, never before, but the operating system's own cleaning of `/tmp` can remove its
+  files, or the directory, while an attempt waits a long time for a person: by default macOS deletes
+  what has not been touched for three days, systemd's default configuration ages `/tmp` out after ten,
+  and a `/tmp` held in memory is empty after a reboot.
 
 - **Reads the runner allows without the guard.** A `Read`, `Grep` or `Glob` is allowed by the runner's
   rule, with no model and nothing published, when its target, followed through every link, lies inside
@@ -383,8 +386,9 @@ What differs from the above:
 - **Every call goes to the guard.** Codex reads, searches and lists files with commands, and the
   runner's rule allows only Claude Code's own file tools, so every call is a decision of the guard, with
   its latency.
-- **A denied call** comes back to the executor as the tool's output, `Command blocked by PreToolUse
-  hook: Denied by the workflow's guard: <reason>`, and the first turn's section says so. A call the
+- **A denied call** comes back to the executor as the tool's output, which codex words `Command blocked
+  by PreToolUse hook: <reason>` (as observed with the codex version the runner was checked against),
+  the reason opening `Denied by the workflow's guard: `; the first turn's section says so. A call the
   runner could not be asked about is blocked by codex itself: it has no `deny` note and does not count
   toward the breaker.
 - **No interactive sessions.** A guarded Codex executor cannot open an interactive terminal session and
@@ -392,7 +396,8 @@ What differs from the above:
   guard. Work that needs one (an interactive database shell, a REPL fed line by line) cannot be done
   there.
 - **A web search can fail the node.** On a Codex model whose web search is the provider's own hosted
-  tool (`gpt-5.5` and `gpt-5.4` among them), the search reaches no hook, so a guarded executor that
+  tool (with the codex version the runner was checked against, `gpt-5.5` and `gpt-5.4` among them), the
+  search reaches no hook, so a guarded executor that
   searches fails its node with `guard.unwitnessed`, the reason naming the hosted search. Run such an
   executor on a model whose search goes through codex's own tool, which the guard decides like any
   call, or have the runner's operator turn Codex's web search off in the runner's codex settings.
@@ -485,8 +490,9 @@ so every run of that version is declined (`runner-rules.md`).
 - **The resume cannot ask.** A question that turn writes for the adviser, or for a person under
   `escalation`, is never read. Its permission prompts, under a permission mode other than bypass, still
   become questions to a person, as on any turn.
-- **A watcher protects nothing.** A wake that fails, or a watcher that cannot be reached, costs its note
-  and nothing else: the calls it saw have already run, and the work goes on.
+- **A watcher protects nothing.** A wake during the work that fails, or a watcher that cannot be
+  reached, costs its note and nothing else: the calls it saw have already run, and the work goes on.
+  Only its last look at the end of the turn can stop the node, by parking it (Failures, below).
 - **A wake takes a slot of its own harness** on the runner, like any session, so on a runner that runs
   one Claude Code session at a time, a `claude-code` watcher's wakes due during the executor's turn wait
   for that turn's end, and their notes reach the executor only in the resume after it.
