@@ -23,6 +23,7 @@ shown; the other rows are read from the runner's source.
 | Every consume names a node that produces that deliverable | `validate.consumes-not-produced` | point the consume at the producing node; the editor refuses such a consume (409 `workflow.edit_conflict`), a bundle import accepts it |
 | A rework's feedback deliverable is not also consumed by its head | `validate.feedback-duplicates-input` | drop that consume from the head; the head receives the feedback anyway |
 | Every inline `script` parses as POSIX `sh` | `script.syntax` (checked before the run starts) | run `sh -n` on the script text |
+| A review partner's `verdict` deliverable is `format: json` and declares exactly the fields the runner writes (the server checks only that the node produces it) | `validate.pair-verdict-unusable`, whose message prints the fields to declare | copy the block in `dialect.md`, "Partners"; change no name, type, `required` or enum value |
 | No YAML anchors, aliases or `<<` merge keys in any document | `parse.anchor-unsupported`, `parse.merge-key-unsupported` | write every value out |
 | No key twice in one mapping, no `=` key, and no key YAML reads as a non-string (an unquoted `on`, `yes`, `1`) in an agent or deliverable document | `parse.duplicate-key`, `parse.value-key-unsupported`, `parse.non-string-key` | quote such keys, write each key once |
 
@@ -120,6 +121,8 @@ Walk the published YAML (`get_declaration`) and its pinned documents, and confir
       `$SHEPHERD_OUT/<name>.json` (plus `<name>.md` or `<name>.html`) for every deliverable it produces;
 - [ ] no document uses `&anchor`, `*alias` or `<<:`, repeats a key in one mapping, or leaves a key
       such as `on`, `yes` or `1` unquoted;
+- [ ] every review partner's `verdict` deliverable is `format: json` and declares exactly the fields
+      in `dialect.md`, "Partners";
 - [ ] no inline node uses `run: {profile: ...}` unless the target repository defines that profile;
 - [ ] every repository the task selects has a `url` the runner can clone or a runner binding.
 
