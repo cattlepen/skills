@@ -158,7 +158,7 @@ The codes you will meet most, with the measured message and the fix. The full li
 
 | code | measured message | fix |
 |---|---|---|
-| `agent.no-harness` | "agent node names no runtime harness" (path `nodes.<node>.runtime.harness`) | add `runtime: {harness: claude-code}` or `codex` to that agent node |
+| `agent.no-harness` | "agent node names no runtime harness" (path `nodes.<node>.runtime.harness`); for a partner, "the `<mode>` partner names no runtime harness" (path `nodes.<node>.pair.<mode>.runtime.harness`, read from source) | add `runtime: {harness: claude-code}` or `codex` to that agent node, or to that partner |
 | `pin.unresolved` | "no published version 1 of deliverable \"check\"" | publish that version first, or add a binding to its draft (below) |
 | `switch.unrouted-value` | "value \"fail\" of check.result has no route — every value must be routed explicitly" | add a route for every enum value of the switched field: where an existing value of the same meaning goes, else to the workflow's `cancel` node; that is part of the fix, and the report names the choice |
 | `graph.unreachable-node` | "node \"stop\" is not reachable from entry" | connect the node, or remove it; a cancel node used only by a rework's `on_exhausted` is reachable once that rework is |

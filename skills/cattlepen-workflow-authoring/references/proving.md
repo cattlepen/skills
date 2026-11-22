@@ -57,19 +57,21 @@ readiness reports `input.invalid` without naming the field: fix the content and 
    `artifacts` and `diagnostics` (`input.missing`, `input.invalid`, `input.unknown`). It covers the
    inputs only. Wanted: `ready: true` and no diagnostics.
 2. Read the task again (`list_tasks{project_id}`) for `launch_problem`. It must be `null`. Its codes:
-   `no_published_version`, `version_not_launchable` (an agent node's runtime is invalid: publish a
-   fixed version), `model_required` (a harness that needs a model has none), `no_runner_supports`
-   (no runner key enables that harness or model), and codes for a task pinned to an unusable runner.
+   `no_published_version`, `version_not_launchable` (an agent node's runtime, or a partner's, is
+   invalid: publish a fixed version), `model_required` (a harness that needs a model has none),
+   `no_runner_supports` (no runner key enables that harness or model), and codes for a task pinned to
+   an unusable runner. A problem that carries `mode` is about that partner of the node, not the node's
+   own runtime.
 3. Check that a runner that can take the task is online, because `launch_problem` counts runner keys
    whether or not the runner is connected; a run with no online runner stays `pending`:
    - `read_api_operation{operation: "GET /runners", request: {query: {project_id: <project id>}}}`
      lists the runner keys you can see (on a self-hosted installation, only those whose owner is a
      member of the project). One of them needs `status: "online"`, `own: true` or `shared: true`,
      every harness the workflow uses in `enabled_harnesses`, and every model a node names in
-     `models[<harness>]`;
+     `models[<harness>]`, counting each node's partners (`pair`) with their own runtimes;
    - for a quick count, `read_api_operation{operation: "GET /catalog/models", request: {}}` gives
      each `{harness, model}` with `runners` (keys) and `online` (connected now), across the account.
-   A node without a model runs the runner's default model for its harness. The full runner check,
+   A node or partner without a model takes its harness's default model. The full runner check,
    and creating a runner key, belong to the `cattlepen-projects` skill.
 
 Rung 4 holds when all three pass. If no runner is online, say so and stop here: the user has to start
@@ -78,7 +80,7 @@ one (`shepherd` on their machine).
 ## 5. The trial run (rung 5), only when the user asks
 
 `start_run{task_id}` returns the run `id`. It is refused, without creating a run, with:
-409 `task.launch_problem` `{problem: {code, node_id, node_name, harness}}`; 409 "task has no repo
+409 `task.launch_problem` `{problem: {code, node_id, node_name, mode?, harness}}`; 409 "task has no repo
 binding"; 422 "task inputs are not ready" with the readiness diagnostics. A run can also stay
 `pending`; `get_run` then gives a `pending_reason`.
 
