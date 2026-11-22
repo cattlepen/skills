@@ -12,6 +12,8 @@ agents:
 deliverables:
   task: {version: 1}
   change: {version: 1}
+  review_verdict: {version: 1}
+  owner_answer: {version: 1}
   pr_ref: {version: 1}
 inputs: [task]
 outputs: [pr_ref]
@@ -31,6 +33,7 @@ nodes:
         agent: reviewer
         runtime: {harness: claude-code, model: claude-opus-5-5, effort: high}
         max_rounds: 2
+        verdict: review_verdict
       guard:
         agent: policy_guard
         runtime: {harness: claude-code, model: claude-haiku-5-5}
@@ -41,8 +44,39 @@ nodes:
         max_notes: 2
     consumes:
       task: $input
-    produces: [change]
-    next: publish
+    produces: [change, review_verdict]
+    next: review_passed
+  review_passed:
+    type: switch
+    label: Did the review pass?
+    consumes:
+      review_verdict: develop
+    on: outcome
+    routes:
+      ship: publish
+      minor_only: publish
+      round_cap: owner
+      needs_person: owner
+      partner_unavailable: owner
+  owner:
+    type: human_gate
+    label: The review did not pass
+    prompt: "The reviewer still had blocker or major findings after its last round, found a regression its fixes introduced, or returned no verdict. Its verdict, with the findings left open and its questions, and the change summary are among the run's results (node develop). Approve to commit the change and open the pull request anyway, with the open findings and questions in its description; reject to stop the run without a pull request."
+    consumes:
+      change: develop
+      review_verdict: develop
+    produces: [owner_answer]
+    timeout_s: null
+    next: override
+  override:
+    type: switch
+    label: Open the pull request anyway?
+    consumes:
+      owner_answer: owner
+    on: decision
+    routes:
+      approve: publish
+      reject: give_up
   publish:
     type: inline
     label: Commit, push and open the pull request
@@ -56,6 +90,12 @@ nodes:
         printf '%s' "$SHEPHERD__CHANGE" | jq -r '.files // [] | .[]' > "$listed"
         body="$(mktemp)"
         printf '%s' "$SHEPHERD__CHANGE" | jq -r '"## Summary\n\n" + .summary + "\n\n## Open choices\n\n" + (if (.open_choices | length) == 0 then "None." else (.open_choices | map("- " + .) | join("\n")) end)' > "$body"
+        printf '%s' "$SHEPHERD__REVIEW_VERDICT" | jq -r '
+          def listed(f): if length == 0 then "None." else map(f) | join("\n") end;
+          "\n## Review\n\n" + .outcome + " after " + (.rounds | tostring) + " review(s).\n\n## Findings left open\n\n"
+          + (.findings | listed("- " + .severity + " " + .file + (if .line == null then "" else ":" + (.line | tostring) end) + ": " + .claim))
+          + "\n\n## Questions for the owner\n\n"
+          + (.questions | listed("- " + .point + "\n  - " + .reading_a + "\n  - " + .reading_b))' >> "$body"
         git add -u
         while IFS= read -r path; do
           if [ -f "$path" ] && ! git check-ignore -q -- "$path"; then
@@ -74,7 +114,11 @@ nodes:
     consumes:
       task: $input
       change: develop
+      review_verdict: develop
     produces: [pr_ref]
     next: done
   done:
     type: end
+  give_up:
+    type: cancel
+    label: Stopped by the owner

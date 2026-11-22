@@ -1,0 +1,33 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: review_verdict
+format: json
+fields:
+  outcome:
+    type: string
+    required: true
+    enum: [ship, minor_only, round_cap, needs_person, partner_unavailable]
+  rounds:
+    type: int
+    required: true
+  findings:
+    type: array
+    required: true
+    items:
+      type: object
+      fields:
+        severity: {type: string, required: true, enum: [blocker, major, minor]}
+        origin: {type: string, required: true, enum: [new, unresolved, regression]}
+        file: {type: string, required: true}
+        line: {type: int}
+        claim: {type: string, required: true}
+        evidence: {type: string, required: true}
+  questions:
+    type: array
+    required: true
+    items:
+      type: object
+      fields:
+        point: {type: string, required: true}
+        reading_a: {type: string, required: true}
+        reading_b: {type: string, required: true}
