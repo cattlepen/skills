@@ -205,7 +205,8 @@ launches when it is written, and nowhere else.
 | `task.launch_frozen` | 409 | | the task has a run pending, active or cancelling; no launch field (pin, runner, either override map, `repo`, `readonly_repos`) can change |
 
 `mode` is present when the override is a partner's. A node override written while it was valid is not
-checked again when the launched version later gains a `guard` or `watch` on that node.
+checked again when the launched version later gains a `guard` or `watch` on that node; for a `guard`,
+the runner then declines the run (`dispatch.unresolvable`, section 5).
 
 ### Input readiness (`get_task_readiness` diagnostics)
 
@@ -341,6 +342,16 @@ launched and when an override is written. A run that meets one was sent by a ser
 runtime, or the task's partner override, on `claude-code` or `codex`. `shepherd preflight` prints the
 same two problems.
 
+A node with a `guard` partner is declined `dispatch.unresolvable` with the cause `its 'guard' partner
+runs here only on an executor running on claude-code, and the execution snapshot puts the executor on
+harness '<h>'` when the run puts its executor on another harness. The server checks a task's node
+override only when it is written (section 3), so an override written before the node had its guard can
+do that. Fix: remove or change the task's override for that node in `exec_overrides`.
+
+<!-- UNFINISHED(codex-executor): the cause above names claude-code only; re-read it once the runner
+guards a codex executor, and add the decline of a guarded Codex node on Windows, which names the
+platform. -->
+
 ### Compile diagnostics (inside `bundle.invalid`, and printed by `shepherd validate`)
 
 The runner's compiler repeats most server rules under its own codes (`parse.*`, `link.*`, `validate.*`,
@@ -379,6 +390,8 @@ them as a block), and a new workflow version that pins it.
 | `signal.timeout` | `no signal on topic '<topic>' within <n>s` (a gate's `timeout_s`) |
 | `map.over-limit` / `map.member_failed` | `map '<id>' sized <n> members over its limit <m> ...` / `map members failed: <ids>` |
 | `node.park_exhausted` / `node.park_churn` | parked past the 48-hour budget / re-parked too often |
+| `guard.breaker` | `the workflow's guard denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was <tool> <command or path>: <reason>` |
+| `guard.unwitnessed` | `the executor's call <id> (<tool> <command or path>) ran with no decision from the workflow's guard: the guard's hook did not fire (a managed policy or a broken hook can switch it off)`; or `the executor's call <id> (<tool> <command or path>) ran although the workflow's guard denied it` |
 | `node.internal_error` | an unexpected error inside the runner |
 
 Outside this pattern: `plan-directed halt` (a `cancel` node was reached, M) and
@@ -394,10 +407,35 @@ reviewer that runs but returns no valid verdict, even when asked once more, is n
 loop ends `partner_unavailable` and the node completes. The same goes for running out of review rounds:
 it ends `round_cap` or `needs_person`, never a node failure.
 
+**A guard's denies and failures.** A guard never parks the node and never fails it with its harness's
+codes: a decision that misses the runner's deadline, a guard session that fails, parks or cannot start,
+and an answer that is not the decision object are each a deny, whose reason says which: `the guard gave
+no decision within <n>s`, `the guard's session failed (<subtype>, exit code <n>)`, `the guard could not
+decide: <code>: <message>`, `the guard's answer was not the JSON object the runner asked for: <text>`,
+`the guard's hook gave no answer, so the CLI blocked the call`, and, from the runner itself, `the runner
+could not ask the guard: <type>: <error>` or `the runner could not record the guard's decision: <error>`.
+Denies fail the node through `guard.breaker`, after three in a row or ten in one attempt, at once and
+with no further attempt; its `detail` holds `denied`, `in_a_row`, `tool`, `action` and `reason`. Read
+the node's `deny` notes (`run-time.md`, "A node with partners"):
+
+- denies whose reasons are the guard's own judgement: the executor kept trying what the policy forbids,
+  so state the policy in the executor's prompt or the task, or change the policy if it forbids ordinary
+  work;
+- denies whose reasons the runner wrote (a deadline, a failed session, a provider limit or lost login, an
+  answer that was not the object): put the guard on a model that answers within the deadline, or fix
+  its harness on the runner. The deadline (`[guard] decision_timeout_s` in the runner's configuration,
+  30 s by default) also counts the wait for a free partner slot on a busy runner.
+
+`guard.unwitnessed` (`detail`: `tool_use_id`, `tool`) means Claude Code on the runner machine ran a call
+without asking the guard, or ran one the guard denied: a managed Claude Code policy or a broken hook
+switched the hook off. Only the runner's operator can fix that machine's Claude Code configuration;
+until then run the task on another runner, or publish a version without the guard.
+
 ### Park codes (the start of `parked_reason`)
 
 `claude.budget`, `codex.budget` (provider usage limits, with `limit_wait`), `codex.rate_limited`,
 `opencode.rate_limited` (short rate limits), `claude.login_required`, `codex.login_required`,
 `cursor_cli.login`, `opencode.auth` (the harness on the runner needs a login; retried every 300 s). Other park
-codes exist. A partner's session parks the node with the same codes, for its own harness; when the node
-resumes, the executor's session continues and the partner runs again.
+codes exist. An adviser's or a reviewer's session parks the node with the same codes, for its own
+harness; when the node resumes, the executor's session continues and the partner runs again. A guard's
+session never parks it: that decision is a deny (above).
