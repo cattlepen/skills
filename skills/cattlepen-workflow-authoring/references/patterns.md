@@ -192,8 +192,9 @@ names) through a switch to a human gate, or declare `escalation` so the executor
 **A watcher relays what it knows while the work runs.** A watcher is woken every `every` tool calls of
 the executor and may leave a note, at most `max_notes` in one attempt, the last kept for the end of the
 turn. It pays when it knows facts or conventions the executor cannot read anywhere, and it is an
-addition to a reviewer, never a replacement: it does not prevent a wrong choice. Measured on small tasks
-over 83 executor runs:
+addition to a reviewer, never a replacement: it does not prevent a wrong choice. It watches only an
+executor on `claude-code`, and only the work before a review: a reviewer's rounds are not watched.
+Measured on small tasks over 83 executor runs:
 
 - No note came before a wrong choice was written (0 of 32). What the watcher changed came through its
   last look at the end of the turn: 4 of 32 runs passed without that step, 26 of 32 with it.
@@ -226,23 +227,32 @@ outside the tree was allowed in all 36 trials, in every configuration.
   552 ordinary requests were denied. Write the policy as clear rules about what an action does.
 - Each decision adds latency to the tool call it judges, even with a small model; a read the runner's
   rule allows adds none.
-- It cannot forbid a read the runner allows. A read, search or listing with the agent's own file tools
-  inside the working tree, the agent's inputs or a read-only repository is allowed by the runner before
-  the guard is asked, unless a part of its path matches one of the runner's secret names: a list the
-  runner's operator sets, by default `.env`, `.env.*`, `*.pem`, `*.key`, SSH key files and the usual
-  credential files (`.npmrc`, `.pypirc`, `.netrc`, `.git-credentials`). Keep a file that must not be
-  read out of those places, or have its name put on that list (`runtime-contract.md`, "Partners").
-- It fails closed. A decision that comes too late, a guard session that fails and a guard that cannot be
-  reached all deny the call, and three denies in a row, or ten in one attempt, fail the node at once
-  (`guard.breaker`). A call that ran without a decision, because something on the machine switched
-  Claude Code's hooks off, fails it too (`guard.unwitnessed`).
-- It never widens what the runner allows: a call the guard allows still meets the runner's own
-  permissions.
+- On a Claude Code executor it cannot forbid a read the runner allows. A read, search or listing with
+  the agent's own file tools inside the working tree, the agent's inputs or a read-only repository is
+  allowed by the runner before the guard is asked, unless a part of its path matches one of the
+  runner's secret names: a list the runner's operator sets, by default `.env`, `.env.*`, `*.pem`,
+  `*.key`, SSH key files and the usual credential files (`.npmrc`, `.pypirc`, `.netrc`,
+  `.git-credentials`). Keep a file that must not be read out of those places, or have its name put on
+  that list (`runtime-contract.md`, "Partners"). A Codex executor reads with commands, so every read
+  reaches the guard.
+- On a Claude Code executor it fails closed. A decision that comes too late, a guard session that fails
+  and a guard that cannot be reached all deny the call, and three denies in a row, or ten in one
+  attempt, fail the node at once (`guard.breaker`). A call that ran without a decision, because
+  something on the machine switched Claude Code's hooks off, fails it too (`guard.unwitnessed`).
+- On a Codex executor it detects and stops. A call the guard denies never runs, and the same deadline
+  and breaker apply, but codex lets a call run when the guard's hook gives no answer it can read. The
+  runner then finds the call in the executor's stream after it ran, stops the turn and fails the node
+  (`guard.unwitnessed`); the call's effect stays. A guarded Codex executor also has no interactive
+  terminal session, and on a model whose web search is the provider's hosted tool a search fails the
+  node. A runner on Windows declines a run with a guarded Codex node, naming the platform.
+- It never widens what the runner allows: on Claude Code, a call the guard allows still meets the
+  runner's own permissions.
 
-<!-- UNFINISHED(codex-executor): on a Codex executor the guard detects and stops (a forbidden call is
-found after it ran), and a guarded Codex node on Windows is declined with the platform named. -->
-<!-- UNFINISHED(runner-guard): the runner's own guard, which applies to every node whatever the workflow
-says, only as the runner docs describe it. -->
+The runner's operator can add a guard of the runner's own, which judges every agent node of every run
+on that runner, whatever the workflow says, before the workflow's guard: a deny from either stops the
+call, and the operator's policy outranks the workflow's. It has the same limits and is not a sandbox
+either. A runner with it declines a run with a node on a harness it cannot guard rather than run that
+node unguarded (`runtime-contract.md`, "The runner's own guard").
 
 Keep real isolation (accounts, permissions, networks) wherever an action could do harm, and use a guard
 for the agent's own choices on top of it.

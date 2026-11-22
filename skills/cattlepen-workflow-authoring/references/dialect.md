@@ -218,6 +218,9 @@ keyed by the mode. The modes are `advise`, `review`, `guard` and `watch`; being 
 partner in one mode cannot be written. Which mode to use, and on which model, is in `patterns.md`
 ("Partners"); what each partner does at run time is in `runtime-contract.md`.
 
+This section was written on 2026-11-22 from unreleased versions of Cattlepen and the runner, and was
+checked against no running installation.
+
 ```yaml
 agents:
   developer: {version: 1}
@@ -277,7 +280,7 @@ nodes:
 | `review` | `max_rounds` | yes | how many times the partner may send the work back in one attempt; running out of rounds never fails the node |
 | `review` | `verdict` | no | the name of a deliverable in the node's own `produces`, which receives the loop's final verdict |
 | `guard` | none | | takes no other field; its decision deadline and the list of secret names whose reads always reach it are settings of the runner, not of the workflow (`runtime-contract.md`, "Partners") |
-| `watch` | `every` | yes | how many of the executor's tool calls pass between two wakes of the partner |
+| `watch` | `every` | yes | how many of the executor's tool calls pass between two wakes of the partner (at least that many; a sub-agent's calls do not count) |
 | `watch` | `max_notes` | yes | how many notes the partner may leave in one attempt; the last one is kept for the end of the turn |
 
 - **Bounds** (`max_calls`, `max_rounds`, `every`, `max_notes`) are integers of at least 1, with no
@@ -290,10 +293,12 @@ nodes:
   the harness's own default applies. An executor and its partner may share a harness and a model;
   for `review` that draws the warning `pair.same-model`, because a reviewer no stronger than the
   executor finds few of its defects.
-
-  <!-- UNFINISHED(codex-executor): what the runner does with a `guard` on an executor that runs on
-  codex, which the server accepts. -->
-  <!-- UNFINISHED(watch): what the runner docs say about `watch` on an executor that runs on codex. -->
+- **On the runner.** A `guard` runs beside an executor on either of the two harnesses, but on `codex`
+  it detects and stops: a call that got past the guard's hook is found after it ran, and the node fails
+  with its effect left in place (`runtime-contract.md`, "Partners"). A runner on Windows declines a
+  run with a guarded Codex node. A `watch` beside an executor that runs on `codex` is accepted by the
+  server and refused by the runner when it compiles the workflow (`validate.pair-mode-unsupported`), so
+  every run of that version is declined: give a watched node an executor on `claude-code`.
 - **The partner's agent** is a pin in `agents:` (`link.unknown-agent` at `<node>.pair.<mode>.agent`,
   also when `agent` is missing), and a pin used only by a partner is a used pin (no `pin.unused`). The
   declaration carries no prompt or protocol text: the partner's prompt is its agent's prompt, and how
