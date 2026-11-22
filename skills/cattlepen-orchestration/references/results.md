@@ -21,9 +21,9 @@ that depends on it.
   `verdict`, whose message lists the open findings and the questions; the adviser's questions in its
   `advice` notes; and each `node_event` of `kind` `deny`, a call a guard denied, which did not run (the
   agent says in its result what it left out because of it, or that it stopped). A `deny` with `guard:
-  runner` came from the runner's own guard, which its operator may have turned on for every node, also
-  one that declares no partner. A watcher's `note` events are what it told the agent; they need no
-  answer. Put the open findings, the questions and what was left out in front of the person with the
+  runner` comes from the runner's own guard, which its operator may have turned on for every node, also
+  one that declares no partner (or, while that guard is on, from a call blocked before any guard
+  decided). A watcher's `note` events are what it told the agent; they need no answer. Put the open findings, the questions and what was left out in front of the person with the
   result: they are decisions the run left to the task's owner. Where the run went from there shows in
   `branch_routed`.
 - **Tokens.** Each `node_completed` carries the node's tokens, every agent of the node together, and on

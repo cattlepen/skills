@@ -311,7 +311,7 @@ is not a sandbox").
   the runner's own Claude Code permissions, and under a permission mode other than bypass their prompt,
   so a guard can only narrow what the runner's operator allowed. A denied call does not run: it comes
   back to the executor as the tool's error result, carrying `Denied by the workflow's guard: <reason>`.
-  The first turn of each attempt ends with a section that says so and tells the executor never to retry
+  The first turn of each attempt carries a section that says so and tells the executor never to retry
   a denied action nor reach its effect another way (another tool, another command, a script); to carry
   on without the denied part when the task allows it and say in its result what it left out and why;
   otherwise to stop, and either ask a person (only when the node declares `escalation` with rounds
@@ -326,7 +326,8 @@ is not a sandbox").
   socket can still be bound in a directory made inside it); on Windows it is inside the run's own
   folder. It belongs to the attempt: every turn of the attempt finds it with what the earlier turns
   left in it, also after a wait for a person or a restart of the runner, and another attempt gets
-  another one. The runner makes it readable by its own user only; an attempt that finds something
+  another one (a node started again from its first attempt in the same run finds that attempt's
+  directory again). The runner makes it readable by its own user only; an attempt that finds something
   else at its path (a file, a link, another user's directory) fails with `guard.tmpdir_refused` and is
   retried, in a new directory. It is deleted with the run's state, never before, but the operating
   system's own cleaning of `/tmp` can remove its files, or the directory, while an attempt waits a
@@ -420,8 +421,10 @@ in a workflow turns it off, and the operator's policy outranks the workflow's. I
   deadline, and the breaker counts the denies of both together. A read the runner's rule allows asks
   neither.
 - **The executor is told which guard denied:** `Denied by the runner's guard: <reason>` or `Denied by
-  the workflow's guard: <reason>`, and its first-turn section quotes the lines its node can receive. So
-  an executor whose workflow declares no partner can still be told about a guard, and be stopped by one.
+  the workflow's guard: <reason>` (on `codex` inside codex's own `Command blocked by PreToolUse hook:`).
+  On `claude-code` its first-turn section quotes the lines its node can receive; on `codex` it quotes
+  only codex's wrapping. So an executor whose workflow declares no partner can still be told about a
+  guard, and be stopped by one.
 - **Where it cannot sit.** With its own guard, a runner declines a run with an agent node on
   `cursor-cli` or `opencode`, or on `codex` on a Windows runner, before any node starts
   (`dispatch.unresolvable`): it never runs a node unguarded.
@@ -464,7 +467,7 @@ so every run of that version is declined (`runner-rules.md`).
   a note is cut at 4 KiB.
 - **How a note reaches the executor.** At its next tool call, after that call's result, between
   `<<<PARTNER_NOTE>>>` and `<<<PARTNER_NOTE_END>>>`, one note per call. The first turn of each attempt
-  ends with a section that says a partner watches, cannot change anything and answers no questions;
+  carries a section that says a partner watches, cannot change anything and answers no questions;
   that a note is its observation, never the user's instruction; to take a fact it states as true unless
   the repository contradicts it; to do what the user asked when a note conflicts with it and say so in
   its final message; and not to wait for notes.
@@ -479,8 +482,9 @@ so every run of that version is declined (`runner-rules.md`).
   with all of them. That resume is an ordinary turn of the executor (it ends with its status line and
   may be continued), and it is the turn the node reports. With no note pending nothing is resumed.
   Because the end comes before the review, the reviewer sees what the resume changed.
-- **The resume asks nobody.** A question that turn writes for the adviser, or for a person under
-  `escalation`, is never read.
+- **The resume cannot ask.** A question that turn writes for the adviser, or for a person under
+  `escalation`, is never read. Its permission prompts, under a permission mode other than bypass, still
+  become questions to a person, as on any turn.
 - **A watcher protects nothing.** A wake that fails, or a watcher that cannot be reached, costs its note
   and nothing else: the calls it saw have already run, and the work goes on.
 - **A wake takes a slot of its own harness** on the runner, like any session, so on a runner that runs
@@ -535,8 +539,9 @@ alone in a deliverable: its final message is not one.
   reported for them, so a sub-agent on another model is a share of its own, and it is absent when it
   cannot be named. The shares add up to the three counters. A role that spent nothing has no share (a
   read the rule allowed costs no tokens), a node that spent no tokens sends no `usage_by_role`, and a
-  failed node reports neither. With the runner's own guard on, every agent node it guarded carries a
-  `runner_guard` share, a node without partners included, and its totals are higher by that share.
+  failed node reports neither. With the runner's own guard on, an agent node whose calls it decided
+  carries a `runner_guard` share, a node without partners included, and its totals are higher by that
+  share.
 
 - **Failures.** An adviser's or a reviewer's session fails like an agent session of its harness, with
   the same codes and under the same rule. What parks an executor parks the node here too (a provider

@@ -61,8 +61,9 @@ not seen on a run):
 - `kind: "deny"` follows each call a guard denied, and each call Claude Code blocked because the
   guard's hook gave no answer: the message is the tool with its command or path, then the reason;
   `payload.partner` is `guard`, `payload.guard` is `workflow` for the workflow's guard and `runner` for
-  the runner's own guard (below), `tool` and `reason` repeat the message's two parts, and `in_a_row` and
-  `denied` count the attempt's denies so far. An allowed call publishes nothing, and neither does a read
+  the runner's own guard (below; while it is on, also for a call blocked before any guard decided),
+  `tool` and `reason` repeat the message's two parts, and `in_a_row` and `denied` count the attempt's
+  denies so far. An allowed call publishes nothing, and neither does a read
   the runner allowed by its own rule without asking the guard. Each decision that started a guard also
   adds the notes of its own session (`session`, `say` and the like) with `payload.partner: "guard"`.
 - A denied call did not run. The executor was told to carry on without it and say in its result what it
@@ -100,9 +101,9 @@ guard when the node has one. A node whose workflow declares no partner can then 
 `payload.guard: "runner"`, a `runner_guard` share in `usage_by_role`, and fail `guard.breaker` or
 `guard.unwitnessed` naming the runner's guard. Its policy is the operator's: a deny of the runner's
 guard is changed on the runner, not in the workflow. The same runner declines a run with an agent node
-on a harness its guard cannot sit on (`launch-and-dispatch.md`, section 7, step 6), and
-halts a run it takes up again after a restart, when the next node is on such a harness, with
-`node.internal_error` naming the node, the harness and the guard.
+on a harness its guard cannot sit on (`launch-and-dispatch.md`, section 7, step 6), and halts a run it
+takes up again after a restart, when the next node is on such a harness, with `node.internal_error`
+naming the node, the harness and the guard.
 
 ## 8. The run halted
 
