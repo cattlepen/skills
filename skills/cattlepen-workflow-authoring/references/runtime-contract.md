@@ -219,14 +219,14 @@ prompt does not explain its partners either; the runner tells it what it can do.
   or `major` only when it is still unresolved from an earlier round, a regression the fixes
   introduced, or a new blocker.
 - **What goes back.** When the verdict is `revise` with a `blocker` or `major` finding and a round is
-  left, the runner resumes the executor's own session with those findings verbatim, in the reviewer's order,
-  presented as claims to check rather than orders, from another AI agent that cannot change the task.
-  The executor answers each one as fixed, rejected or ambiguous and changes nothing the findings do not
-  concern. Every distinct question the reviewer has asked so far is listed in that turn only as a point
-  whose current behaviour must stay exactly as it is. `minor` findings never reach the executor. A
-  revise turn is an ordinary turn of the executor: it ends with its status line, may be continued, may
-  ask a person while the node declares `escalation` and has rounds left in the attempt, and may ask its
-  adviser.
+  left, the runner resumes the executor's own session with those findings verbatim, in the reviewer's
+  order, presented as claims to check rather than orders, from another AI agent that cannot change the
+  task. The executor answers each one as fixed, rejected or ambiguous and changes nothing the findings
+  do not concern. Every distinct question the reviewer has asked so far is listed in that turn only as
+  a point whose current behaviour must stay exactly as it is. `minor` findings never reach the
+  executor. A revise turn is an ordinary turn of the executor: it ends with its status line, may be
+  continued, may ask a person while the node declares `escalation` and has rounds left in the attempt,
+  and may ask its adviser.
 - **How the loop ends.** `max_rounds: N` allows N revise turns, so a loop runs at most N + 1 reviews,
   and the last one sends nothing back. It ends with one of five outcomes:
 

@@ -13,8 +13,8 @@ What you look for, in this order:
    repository may still describe a convention the team has left behind.
 
 Try to refute each suspected defect before you raise it: read the code it touches, the code that
-calls it and the tests around it. Raise only what survives. A preference is not a defect, and a finding the agent cannot act
-on costs a round and changes nothing.
+calls it and the tests around it. Raise only what survives. A preference is not a defect, and a
+finding the agent cannot act on costs a round and changes nothing.
 
 When the work depends on a choice only the team can make, and the project's rules do not settle it,
 do not make it for them: name it as an open question.
