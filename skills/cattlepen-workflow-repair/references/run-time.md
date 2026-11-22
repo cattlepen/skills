@@ -38,8 +38,9 @@ for good were not seen.
 
 An agent node may carry partners (`pair` in the declaration) that work inside the node beside its own
 agent, the executor: an adviser it can ask, a reviewer that can send the work back, a guard that judges
-each of its tool calls before it runs. They never appear as nodes or waits of their own; what they did is
-in the node's events (read from the runner's source):
+each of its tool calls before it runs, a watcher that leaves it notes while it works. They never appear
+as nodes or waits of their own; what they did is in the node's events (read from the runner's source,
+not seen on a run):
 
 - Every `node_event` from a partner's own session carries `payload.partner`, the partner's mode, beside
   its `kind`.
@@ -57,33 +58,51 @@ in the node's events (read from the runner's source):
   verdict deliverable, the node's `node_completed` carries it (`outcome`, `rounds`, `findings` still
   open, `questions`), and the `branch_routed` after it shows where the workflow sent it; without one,
   read the last `verdict` note.
-- `kind: "deny"` follows each call the guard denied, and each call Claude Code blocked because the
+- `kind: "deny"` follows each call a guard denied, and each call Claude Code blocked because the
   guard's hook gave no answer: the message is the tool with its command or path, then the reason;
-  `payload.partner` is `guard`, `payload.guard` is `workflow`, `tool` and `reason` repeat the message's
-  two parts, and `in_a_row` and `denied` count the attempt's denies so far. An allowed call publishes
-  nothing, and neither does a read the runner allowed by its own rule without asking the guard. Each
-  decision that started the guard also adds the notes of its own session (`session`, `say` and the
-  like) with `payload.partner: "guard"`.
+  `payload.partner` is `guard`, `payload.guard` is `workflow` for the workflow's guard and `runner` for
+  the runner's own guard (below), `tool` and `reason` repeat the message's two parts, and `in_a_row` and
+  `denied` count the attempt's denies so far. An allowed call publishes nothing, and neither does a read
+  the runner allowed by its own rule without asking the guard. Each decision that started a guard also
+  adds the notes of its own session (`session`, `say` and the like) with `payload.partner: "guard"`.
 - A denied call did not run. The executor was told to carry on without it and say in its result what it
   left out, or else to stop: with a question when the node declares `escalation`, otherwise ending with
   the status word `blocked`, which is not routable. The node can complete either way, so read the `deny`
   notes before you call its work done.
 - A guard fails the node only two ways, at once and with no further attempt: `guard.breaker` (three
   denies in a row, or ten in one attempt) and `guard.unwitnessed` (a call ran without a decision, or ran
-  although it was denied: the guard's hook did not fire on the runner machine). A guard that answers
-  late, fails or cannot be reached never parks the node: each such decision is a deny whose reason says
-  what went wrong (`codes.md`, section 5).
+  although it was denied: the guard's hook did not fire on the runner machine; on a Codex executor, a
+  call that got past the hook, or a web search on the provider's side, found after it ran, so its
+  effect stays). A guard that answers late, fails or cannot be reached never parks the node: each such
+  decision is a deny whose reason says what went wrong (`codes.md`, section 5). A guarded attempt whose
+  private temporary directory the runner cannot use fails `guard.tmpdir_refused` and is retried.
+- `kind: "note"` (`payload.partner: "watch"`) is a note the watcher left: the message is the note, and
+  `delivery` is `hook` when it reached the executor at one of its tool calls during the work, or
+  `resume` when the runner handed it over after the work, in one extra turn of the executor's session.
+  A wake that left no note publishes nothing; each wake adds the notes of its own session with
+  `payload.partner: "watch"`. A `resume` note means the executor ran once more after its work had
+  reached its status line, and that turn's result is the one the node reports. The watcher cannot
+  stop anything: read a note as what it told the executor, and the executor's later messages for what
+  it did with it.
 - Nobody is asked a partner's question during the run, and no wait appears for one: an adviser's
   questions are in its `advice` notes, a reviewer's in the verdict. They are decisions the run left to
   the task's owner.
-- `node_completed` also splits the node's tokens by role in `usage_by_role` (`executor`, or the
-  partner's mode: `advise`, `review`, `guard`), beside the totals, which count every partner call and
-  every guard decision.
+- `node_completed` also splits the node's tokens by role in `usage_by_role` (`executor`, the partner's
+  mode: `advise`, `review`, `guard`, `watch`, or `runner_guard`), beside the totals, which count every
+  partner call, every guard decision and every watcher wake.
 - An adviser's or a reviewer's session fails or parks the node with its own harness's codes, as the
-  executor's does (sections 9 and 10).
+  executor's does (sections 9 and 10). A watcher never fails the node: a wake that fails leaves no
+  note; only its last look at the end of the work can park the node, as an adviser's session can.
 
-<!-- UNFINISHED(watch): the watcher's notes and what it changes in a run. -->
-<!-- UNFINISHED(runner-guard): the runner's own guard as a reader of the run sees it. -->
+**The runner's own guard.** A runner's operator can turn on a guard of the runner's own, which judges
+every agent node of every run on that runner, whatever the workflow declares, and before the workflow's
+guard when the node has one. A node whose workflow declares no partner can then show `deny` notes with
+`payload.guard: "runner"`, a `runner_guard` share in `usage_by_role`, and fail `guard.breaker` or
+`guard.unwitnessed` naming the runner's guard. Its policy is the operator's: a deny of the runner's
+guard is changed on the runner, not in the workflow. The same runner declines a run with an agent node
+on a harness its guard cannot sit on (`launch-and-dispatch.md`, section 7, step 6), and
+halts a run it takes up again after a restart, when the next node is on such a harness, with
+`node.internal_error` naming the node, the harness and the guard.
 
 ## 8. The run halted
 
@@ -198,7 +217,8 @@ login; they retry every 300 s and only the runner's operator can fix them (for c
 total fails with `node.park_exhausted`. The proof is `parked_reason` gone from `get_run`. A node's
 adviser or reviewer parks it the same way, with the codes of the partner's own harness, which may differ
 from the executor's: compare the code with the run's `exec_profile`, which lists each node's partners
-under `pair`. A guard never parks the node: its decision is a deny instead.
+under `pair`. So can a watcher's last look at the end of the work, with the codes of its harness; its
+wakes during the work never park it. A guard never parks the node: its decision is a deny instead.
 
 ## 10. A node fails, or loops through its reworks
 
@@ -232,8 +252,9 @@ inline node gets one attempt.
 | `profile.missing`, `profile.unknown` | ".shepherd/profiles.yml not found in the checked-out tree" / "profile '<name>' is not defined in .shepherd/profiles.yml; has: ..." | define the profile in the repository |
 | `signal.timeout` | "no signal on topic '<topic>' within <n>s" | a gate's `timeout_s` passed |
 | `node.park_exhausted`, `node.park_churn` | | parked too long (login, limits) |
-| `guard.breaker` | "the workflow's guard denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was ..." | read the `deny` notes: reasons the guard wrote mean the executor kept trying what the policy forbids (state the policy to the executor too, or change a policy that forbids ordinary work); reasons the runner wrote (a deadline, a failed session) mean the guard could not answer (`codes.md`, section 5). Not retried |
-| `guard.unwitnessed` | "the executor's call <id> (...) ran with no decision from the workflow's guard: ..." | the guard's hook did not fire on that runner machine; only its operator can fix its Claude Code configuration. Not retried |
+| `guard.breaker` | "the workflow's guard denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was ..." (or "the runner's guard", or "the runner's and the workflow's guards") | read the `deny` notes: reasons the guard wrote mean the executor kept trying what the policy forbids (state the policy to the executor too, or change a policy that forbids ordinary work; a policy of the runner's own guard is its operator's to change); reasons the runner wrote (a deadline, a failed session) mean the guard could not answer (`codes.md`, section 5). Not retried |
+| `guard.unwitnessed` | "the executor's call <id> (...) ran with no decision from the workflow's guard: ..."; on a Codex executor "... ran with no allow from ... and has already run: ..." or "... the model's web search is the provider's hosted tool, ..." | the guard's hook did not fire on that runner machine, or on Codex its answer did not reach codex: only the runner's operator can fix that machine. A Codex call found this way has already run, so check what it did. The hosted-search form: run the node on a Codex model whose search codex runs itself, or turn web search off (`codes.md`, section 5). Not retried |
+| `guard.tmpdir_refused` | "the executor's private temporary directory <path> ..., so this guarded attempt cannot run" | the path existed and was not a private directory of the runner's own user, or could not be made; retried in a new directory. If it repeats, tell the runner's operator |
 
 An inline script's exit code is ignored; only the files it writes count. A script that prints an error and
 writes nothing fails `carrier.missing_output`; a script that writes a failure into its deliverable succeeds
@@ -274,7 +295,8 @@ say the wrong thing.
    `result_files` lists files the run returned (it was empty on the runs seen). A node with a reviewer
    completes even when its review did not pass, and a node with a guard even when the guard denied part
    of the work: read its verdict and its `deny` notes ("A node with partners" above) before blaming the
-   prompt or the input.
+   prompt or the input. A watcher's `note` notes show what the executor was told while it worked, and a
+   `resume` note a last turn the executor ran after its work.
 2. Find the path: `branch_routed` events show which way every switch went.
 3. Compare with the declaration of the run's version: does `outputs` list the deliverable you expected; did
    the switch route on the field you meant; does the agent's prompt ask for what the user wants; did the task's

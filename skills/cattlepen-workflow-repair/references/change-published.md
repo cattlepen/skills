@@ -49,12 +49,12 @@ Measured facts:
    - A node's partners (`pair`) are part of the node's value: change a partner's agent, runtime or
      bounds by replacing the whole node, with its `id` kept. A task's runtime override for a partner is
      keyed by node id and mode, so it follows the partner while both stay, and it is dropped when the new
-     version removes that partner or the node. Adding a `guard` to a node does not re-check a task's
-     node override written before: one that runs the node on a harness other than `claude-code` makes
-     the runner decline every run of the task (`dispatch.unresolvable`) until the override is removed or
-     changed.
-     <!-- UNFINISHED(codex-executor): re-read "other than claude-code" once the runner guards a codex
-     executor. -->
+     version removes that partner or the node. Adding a `guard` or a `watch` to a node does not re-check
+     a task's node override written before: one that runs a guarded node on a harness other than
+     `claude-code` or `codex`, or a watched node on a harness other than `claude-code`, makes the runner
+     decline every run of the task (`dispatch.unresolvable`) until the override is removed or changed.
+     A `watch` on a node whose own runtime is `codex` is refused by the runner's compiler, which the
+     server does not check (`validate.pair-mode-unsupported`, `codes.md`, section 5).
 5. **Validate twice.** `validate_workflow{workflow_id, version: N+1}` must return no error. Then run the
    runner's checks on the draft (`runner-only-rules.md`): `shepherd validate` on its export when
    `shepherd version` works, otherwise every manual rule. Checking the draft is the point: once published,
