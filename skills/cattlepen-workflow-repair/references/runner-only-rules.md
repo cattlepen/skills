@@ -104,7 +104,13 @@ both sources, not measured). Test them by hand the same way:
   encloses a dynamic group (`rework.span-crosses-map`);
 - in an agent or deliverable document, a merge key `<<:` (`parse.merge-key-unsupported`), a `=` key
   (`parse.value-key-unsupported`), the same key twice in one mapping (`parse.duplicate-key`), or a key
-  that YAML reads as a non-string, such as an unquoted `on`, `yes` or `1` (`parse.non-string-key`).
+  that YAML reads as a non-string, such as an unquoted `on`, `yes` or `1` (`parse.non-string-key`);
+- a review partner's `verdict` deliverable that is not `format: json`, or whose fields are not exactly
+  the ones the runner writes into it (`validate.pair-verdict-unusable` at
+  `nodes.<node>.pair.review.verdict`, whose message prints the fields to declare). The server checks
+  only that the node produces it. Compare every field's name, `type`, `required` and enum values, nested
+  fields included, with the block in the `cattlepen-workflow-authoring` skill's `references/dialect.md`,
+  "Partners" (`codes.md`, section 5).
 
 ### Checks that depend on the runner machine
 
