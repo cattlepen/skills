@@ -99,7 +99,8 @@ A partner also draws codes of the node rules, at its own path: `link.unknown-age
 (``the `<mode>` partner names no runtime harness``), `agent.effort-without-harness`,
 `agent.unknown-harness`, `agent.unknown-effort` and `agent.invalid-model` at
 `<node>.pair.<mode>.runtime.<field>`, judged against the partner's own harness. A runtime whose harness
-is missing or unknown draws only its `agent.*` code, never `pair.harness-unsupported` as well. A
+is missing or unknown draws only its `agent.*` code, never `pair.harness-unsupported` as well, and a
+reviewer on the executor's own unknown harness draws no `pair.same-model`. A
 partner's type error (a negative or non-integer bound, a mode that is not a mapping, an unknown key in
 its `runtime`) is `yaml.parse`.
 
@@ -320,8 +321,8 @@ runner's log as `shepherd: run <id> declined — <code>: <message>`.
 | `workspace.lfs-unavailable` | permanent | the repository uses Git LFS and git-lfs is missing or unconfigured on the runner |
 | `workspace.submodule-relative-url` | permanent | a relative submodule URL and no `origin` remote |
 | `input.invalid` | permanent | `$input '<name>' does not match its schema: <n> error(s): ...` or `missing $input payload for '<name>': ...` |
-| `exec-profile.invalid` | permanent | `execution profile must identify agent node '<name>' (<id>) exactly once` |
-| `dispatch.unresolvable` | permanent | `<node> cannot be dispatched: <cause>`, for example `harness '<h>' requires a [<section>] runner configuration` |
+| `exec-profile.invalid` | permanent | `execution profile must identify agent node '<name>' (<id>) exactly once`; for a partner, `execution profile entry for agent node '<name>' (<id>) gives no runtime for its declared '<mode>' partner` |
+| `dispatch.unresolvable` | permanent | `<node> cannot be dispatched: <cause>`, for example `harness '<h>' requires a [<section>] runner configuration`, or for a partner `the '<mode>' partner runs on harness '<h>'; a partner runs on: claude-code, codex` |
 | `bundle.download` | transient | fetching the workflow failed |
 | `bundle.hash-mismatch` | permanent | a fetched document does not match its hash |
 | `capacity.busy` | transient | `All <n> executor processes are still occupied; retry this run.` |
@@ -333,12 +334,28 @@ runner's log as `shepherd: run <id> declined — <code>: <message>`.
 With several permanent problems the message is `<code>: <message>; <code>: <message>`, cut at 2000
 characters; the first code is the decline's code.
 
+The two partner declines should not happen: the server sends a runtime for every declared partner, and
+it refuses a partner off `claude-code` and `codex` when the version is published, when a task is
+launched and when an override is written. A run that meets one was sent by a server older than partners
+(after a rollback, say) or outside those checks: tell the server's operator, and put the partner's
+runtime, or the task's partner override, on `claude-code` or `codex`. `shepherd preflight` prints the
+same two problems.
+
 ### Compile diagnostics (inside `bundle.invalid`, and printed by `shepherd validate`)
 
 The runner's compiler repeats most server rules under its own codes (`parse.*`, `link.*`, `validate.*`,
 `rework.*`). The ones the server does not apply are in `runner-only-rules.md`. `shepherd validate` adds
 `publish.*` (the server's publish rules, as a local preview) and `script.*` (`script.syntax`,
 `script.unconsumed-input`, `script.undeclared-output`); those never decline a run, except `script.syntax`.
+
+One partner code is the runner's alone: `validate.pair-verdict-unusable` at
+`nodes.<node>.pair.review.verdict`, ``the runner writes the review loop's verdict into deliverable
+'<d>': the node must produce it, and it must be a JSON deliverable whose fields are exactly these (its
+name, id and sections are yours): fields: {...}``. The server checks only that the node produces the
+verdict deliverable, so a version whose verdict deliverable declares other fields publishes and every
+run of it is declined `bundle.invalid` with this code. Fix: a new version of that deliverable with
+exactly the fields the message prints (the authoring skill's `references/dialect.md`, "Partners", has
+them as a block), and a new workflow version that pins it.
 
 ### Node failures (halt reason `node '<name>' failed: <code>: <message>`)
 
@@ -367,9 +384,20 @@ The runner's compiler repeats most server rules under its own codes (`parse.*`, 
 Outside this pattern: `plan-directed halt` (a `cancel` node was reached, M) and
 `switch '<node>': value '<v>' of '<field>' has no route and no default`.
 
+**A partner's failures.** An adviser or a reviewer runs as a session of its own harness and fails with
+that harness's codes (`claude.*`, `codex.*`), under the rule an executor's session follows: what parks an
+executor parks the node (below), anything else spends one of the node's attempts, and the next attempt
+starts over, executor and partners alike. An adviser session its harness reports failed is
+`agent.session_failed` `the advise partner's session failed (<subtype>) before it replied`. In the
+failure's `detail`, `session_id` is the executor's session and `partner_session_id` the partner's. A
+reviewer that runs but returns no valid verdict, even when asked once more, is not a failure: the review
+loop ends `partner_unavailable` and the node completes. The same goes for running out of review rounds:
+it ends `round_cap` or `needs_person`, never a node failure.
+
 ### Park codes (the start of `parked_reason`)
 
 `claude.budget`, `codex.budget` (provider usage limits, with `limit_wait`), `codex.rate_limited`,
 `opencode.rate_limited` (short rate limits), `claude.login_required`, `codex.login_required`,
 `cursor_cli.login`, `opencode.auth` (the harness on the runner needs a login; retried every 300 s). Other park
-codes exist.
+codes exist. A partner's session parks the node with the same codes, for its own harness; when the node
+resumes, the executor's session continues and the partner runs again.

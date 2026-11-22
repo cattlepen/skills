@@ -186,7 +186,8 @@ Diagnose by elimination, cheapest first:
 5. **Input files.** The runner checks them again and, unlike the server, names the field: "$input <name>
    does not match its schema: <n> error(s): ..." (`input.invalid`).
 6. **Harnesses.** `dispatch.unresolvable` "<node> cannot be dispatched: <cause>", for example a harness
-   the runner is not configured for.
+   the runner is not configured for, or a partner on a harness other than `claude-code` or `codex`. A
+   run that carries no runtime for a declared partner is `exec-profile.invalid` (`codes.md`, section 5).
 
 If you or the user can reach the runner machine, its log has one line per refusal,
 `shepherd: run <run id> declined — <code>: <message>`, and `shepherd preflight` reproduces the start checks
