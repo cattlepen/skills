@@ -159,6 +159,14 @@ the task's title and description). A finding that rests on a rule only the revie
 to enforce must also be stated to the executor, in its prompt or in the task; the reviewer's prompt
 keeps it too, with what the reviewer needs to recognise a breach (`runtime-contract.md`, "Partners").
 
+**State a guard's policy to the executor too.** A guard stops a forbidden call; it does not teach the
+executor the policy. An executor that was not told the policy finds it one deny at a time, and three
+denies in a row, or ten in one attempt, fail the node at once with no further attempt. So the rules a
+guard enforces also go into the executor's prompt or the task, and the guard's prompt keeps them with
+what the guard needs to recognise a breach. When a denied action can leave the task undone, give the
+executor a field for it in a deliverable a switch routes: the status word `blocked` it is told to end
+with is not routable.
+
 **A pair does not make a weak executor a strong one.** On small tasks, a weak executor with a strong
 reviewer still ended with seeded defects in 7 of 18 loops, where the strong executor alone left none in
 34 runs, and the pair cost 1.0 to 3.3 times as much. Choose the executor for the work; a partner pays on
@@ -202,20 +210,39 @@ over 83 executor runs:
 ### A guard is not a sandbox
 
 A guard is not a sandbox: it is a gate on the agent's own actions. It judges each tool call the agent
-chooses, from the call's text, the repository files the runner attaches and, with read tools, the files
-it opens inside the working tree before its deadline. It does not see code a command loads from anywhere
-else, such as an interpreter's own packages, a dependency, or something fetched at run time: on small
-tasks a harmful start-up file outside the tree was allowed in all 36 trials, in every configuration.
+chooses that the runner's own rule has not already allowed, from the call's text, the repository files
+the runner attaches and, with read tools, the files it opens inside the working tree before its
+deadline. It does not see code a command loads from anywhere else, such as an interpreter's own
+packages, a dependency, or something fetched at run time: on small tasks a harmful start-up file
+outside the tree was allowed in all 36 trials, in every configuration.
 
 - A small model judges the command line; following what a script runs takes a stronger model with read
   tools.
 - A claim inside a command that the guard cannot check (that it is safe, approved, only a test) can turn
   its deny into an allow. The starter guard's prompt tells it to judge what a command does, not what it
   says about itself.
-- It held on clear-cut policy: on small tasks, force-push and deletion outside the working tree were
-  denied in 30 of 30 trials each, and 6 of 552 ordinary requests were denied. Write the policy as clear
-  rules about what an action does.
-- Each decision adds latency to the tool call it judges, even with a small model.
+- It held on clear-cut policy, under the runner's rules, which put the policy above the task: on small
+  tasks, force-push and deletion outside the working tree were denied in 30 of 30 trials each, and 6 of
+  552 ordinary requests were denied. Write the policy as clear rules about what an action does.
+- Each decision adds latency to the tool call it judges, even with a small model; a read the runner's
+  rule allows adds none.
+- It cannot forbid a read the runner allows. A read, search or listing with the agent's own file tools
+  inside the working tree, the agent's inputs or a read-only repository is allowed by the runner before
+  the guard is asked, unless a part of its path matches one of the runner's secret names: a list the
+  runner's operator sets, by default `.env`, `.env.*`, `*.pem`, `*.key`, SSH key files and the usual
+  credential files (`.npmrc`, `.pypirc`, `.netrc`, `.git-credentials`). Keep a file that must not be
+  read out of those places, or have its name put on that list (`runtime-contract.md`, "Partners").
+- It fails closed. A decision that comes too late, a guard session that fails and a guard that cannot be
+  reached all deny the call, and three denies in a row, or ten in one attempt, fail the node at once
+  (`guard.breaker`). A call that ran without a decision, because something on the machine switched
+  Claude Code's hooks off, fails it too (`guard.unwitnessed`).
+- It never widens what the runner allows: a call the guard allows still meets the runner's own
+  permissions.
+
+<!-- UNFINISHED(codex-executor): on a Codex executor the guard detects and stops (a forbidden call is
+found after it ran), and a guarded Codex node on Windows is declined with the platform named. -->
+<!-- UNFINISHED(runner-guard): the runner's own guard, which applies to every node whatever the workflow
+says, only as the runner docs describe it. -->
 
 Keep real isolation (accounts, permissions, networks) wherever an action could do harm, and use a guard
 for the agent's own choices on top of it.
@@ -245,6 +272,8 @@ for the agent's own choices on top of it.
 | a strong partner meant to let a weak executor do a strong one's work | the pair still leaves defects the strong executor alone does not, at up to several times the cost |
 | a design that expects someone to answer a partner during the run | nobody does and the node does not wait: the executor decides alone; route the verdict to a gate, or declare `escalation` |
 | a guard used as a sandbox | it never sees what a command loads from outside the working tree; keep real isolation |
+| a guard's policy the executor was not told | the executor finds the policy one deny at a time, and three denies in a row or ten in one attempt fail the node (`guard.breaker`); state the rules to the executor too |
+| a guard's policy that forbids reading a file inside the working tree | the runner allows a read of it with the agent's file tools without asking the guard, unless its name is on the runner's list of secret names; keep the file out of the tree, or have its name listed |
 | a plan check and a review that guard against the same mistake | twice the partner calls, and nothing more caught |
 | a review `verdict` nobody routes | running out of rounds never fails the node, so without a switch on the verdict the run carries on as if the review had passed |
 | a watcher used instead of a reviewer | its notes do not stop a wrong choice; a review at the end caught what a watcher missed, for less |
