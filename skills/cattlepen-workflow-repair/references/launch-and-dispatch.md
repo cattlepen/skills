@@ -194,8 +194,9 @@ Diagnose by elimination, cheapest first:
    the platform: run the task on another runner or the node on `claude-code`. A runner whose operator
    turned on the runner's own guard declines any agent node on a harness that guard cannot sit on
    (`cursor-cli`, `opencode`, and `codex` on Windows), the cause saying that the runner guards every
-   agent node: only that runner's operator can change it, by removing those harnesses from the key's
-   enabled harnesses, so run the task on another runner meanwhile. A run that carries no runtime for a
+   agent node. The task's owner can run the task on another runner, or put the node on a harness that
+   guard sits on; the runner's operator can turn that guard off, or remove those harnesses from the
+   key's enabled harnesses so that such runs stop being placed there. A run that carries no runtime for a
    declared partner is `exec-profile.invalid` (`codes.md`, section 5).
 
 If you or the user can reach the runner machine, its log has one line per refusal,

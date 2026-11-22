@@ -371,9 +371,10 @@ runner guards every agent node, and its guard runs only on an executor running o
 the execution snapshot puts the executor on harness '<h>'` for a node on `cursor-cli` or `opencode`, or
 `this runner guards every agent node, and its guard cannot run on an executor running on codex on win32:
 ...` on a Windows runner. That check comes before the workflow guard's own. The server's placement does
-not know about that guard and keeps sending the runner such runs, each declined and deleted: the
-runner's operator removes those harnesses from the key's `enabled_harnesses`, or the task runs on
-another runner, or its node on another harness.
+not know about that guard and keeps sending the runner such runs, each declined and deleted. Fix: the
+task runs on another runner, or its node on a harness that guard sits on (`claude-code`, or `codex` off
+Windows); the runner's operator can turn that guard off, or remove those harnesses from the key's
+`enabled_harnesses` so that such runs stop being placed there.
 
 The server does not know these declines either: the run is deleted, the task goes back to `pending`,
 nothing retries it, and placed again it can land on the same runner. `shepherd preflight` on the runner
@@ -476,12 +477,13 @@ something (codex runs the hook through that shell, and the printed text spoils t
 that never started. The hosted-search form means the executor's Codex model searches the web on the
 provider's side, where no hook sees it: run the node on a Codex model whose search goes through codex's
 own tool, or have the runner's operator turn Codex's web search off in the runner's codex settings. A
-call the hook could not ask the runner about is blocked by codex itself, out of the runner's sight: the
-executor reads codex's block message with curl's own error and `shepherd: <guards> could not be asked
-(curl exit status <n>); the call is denied`, or `shepherd: curl not on PATH, so <guards> could not be
-asked; the call is denied` when the runner machine has no `curl`. Such a block has no `deny` note and
-does not count toward the breaker, and the blocked call leaves no note of its own; only the executor's
-messages may mention it. Calls blocked that way point at the runner machine: tell its operator.
+call the hook could not ask the runner about is blocked by codex itself, out of the runner's sight: in
+codex's block message (as observed) the executor reads curl's own error and `shepherd: <guards> could
+not be asked (curl exit status <n>); the call is denied`, or `shepherd: curl not on PATH, so <guards>
+could not be asked; the call is denied` when the runner machine has no `curl`. Such a block has no
+`deny` note and does not count toward the breaker, and the blocked call leaves no note of its own; only
+the executor's messages may mention it. Calls blocked that way point at the runner machine: tell its
+operator.
 
 With the runner's own guard on, its denies are `deny` notes with `guard: runner`, and the executor reads
 `Denied by the runner's guard: <reason>`. A call is asked of the runner's guard first and of the
@@ -490,8 +492,9 @@ together. A deny the runner's guard wrote about the policy is the operator's pol
 can change: ask the runner's operator, or run the task on another runner.
 
 `guard.tmpdir_refused` means the guarded attempt's private temporary directory (`runtime-contract.md` in
-the authoring skill, "Partners") was not a directory of the runner's own user readable by it alone, or
-could not be made; the message names the path and what is wrong with it. The next attempt uses another
+the authoring skill, "Partners") was not a directory or was a link (on macOS and Linux also: belonged to
+another user, or had a mode other than `0700`), or could not be made; the message names the path and what
+is wrong with it. The next attempt uses another
 directory. If it repeats, something on the runner machine creates or changes those paths: tell its
 operator.
 
