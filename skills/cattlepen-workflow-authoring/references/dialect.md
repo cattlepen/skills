@@ -255,7 +255,17 @@ nodes:
         max_notes: 3
     consumes: {task: $input}
     produces: [change, review_verdict]
-    next: done
+    next: review_passed
+  review_passed:                       # running out of rounds never fails the node: route the verdict
+    type: switch
+    consumes: {review_verdict: develop}
+    on: outcome
+    routes:
+      ship: done
+      minor_only: done
+      round_cap: owner                 # a human gate (not shown) that decides what happens next
+      needs_person: owner
+      partner_unavailable: owner
 ```
 
 | mode | field | required | meaning |
@@ -284,8 +294,49 @@ nodes:
   also when `agent` is missing), and a pin used only by a partner is a used pin (no `pin.unused`). The
   declaration carries no prompt or protocol text: the partner's prompt is its agent's prompt, and how
   the partner and the executor talk is the runner's contract.
-- **The verdict deliverable** must be among the node's `produces` (`pair.verdict-not-produced`). Its
-  fields must be what the runner writes into it: `runtime-contract.md`, "Partners".
+- **The verdict deliverable** must be among the node's `produces` (`pair.verdict-not-produced`). The
+  runner writes it after the review loop, so declare it as a `format: json` deliverable with exactly
+  these fields (its `name` and `id` are yours):
+
+  ```yaml
+  fields:
+    outcome:
+      type: string
+      required: true
+      enum: [ship, minor_only, round_cap, needs_person, partner_unavailable]
+    rounds:
+      type: int
+      required: true
+    findings:
+      type: array
+      required: true
+      items:
+        type: object
+        fields:
+          severity: {type: string, required: true, enum: [blocker, major, minor]}
+          origin: {type: string, required: true, enum: [new, unresolved, regression]}
+          file: {type: string, required: true}
+          line: {type: int}
+          claim: {type: string, required: true}
+          evidence: {type: string, required: true}
+    questions:
+      type: array
+      required: true
+      items:
+        type: object
+        fields:
+          point: {type: string, required: true}
+          reading_a: {type: string, required: true}
+          reading_b: {type: string, required: true}
+  ```
+
+  A switch routes on `outcome`, every one of its five values (what each means: `runtime-contract.md`,
+  "Partners"). The server checks only that the node produces the verdict; the runner compares the
+  declared fields with these by name, type, `required` (absent reads as `false`), enum values (in any
+  order) and the nested fields, and refuses anything else when it compiles the workflow
+  (`validate.pair-verdict-unusable` at `<node>.pair.review.verdict`). Its message prints the fields to
+  declare on one line. A version with such a verdict publishes, and every run of it is then declined
+  (`runner-rules.md`).
 - `pair` and `escalation` are independent: a node may declare either, both or neither. A null `pair`
   or a null mode (`review: ~`) reads as absent.
 - **Launchability.** A partner's runtime errors (`agent.*` at `<node>.pair.<mode>.runtime.<field>`) and
@@ -297,7 +348,8 @@ nodes:
 
 Diagnostics are reported at `nodes.<name>.pair...`, or `nodes.<group>.template.pair...` for a
 template. A runtime whose harness is missing or unknown draws only its `agent.*` code, never
-`pair.harness-unsupported` as well; that also holds for the executor of a `guard` or `watch`.
+`pair.harness-unsupported` as well; that also holds for the executor of a `guard` or `watch`. Nor does
+a reviewer on the executor's own unknown harness draw `pair.same-model`.
 
 ## The agent document
 
