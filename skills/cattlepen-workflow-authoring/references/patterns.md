@@ -283,7 +283,7 @@ for the agent's own choices on top of it.
 | a design that expects someone to answer a partner during the run | nobody does and the node does not wait: the executor decides alone; route the verdict to a gate, or declare `escalation` |
 | a guard used as a sandbox | it never sees what a command loads from outside the working tree; keep real isolation |
 | a guard's policy the executor was not told | the executor finds the policy one deny at a time, and three denies in a row or ten in one attempt fail the node (`guard.breaker`); state the rules to the executor too |
-| a guard's policy that forbids reading a file inside the working tree | the runner allows a read of it with the agent's file tools without asking the guard, unless its name is on the runner's list of secret names; keep the file out of the tree, or have its name listed |
+| a guard's policy that forbids reading a file inside the working tree | on a Claude Code executor the runner allows a read of it with the agent's file tools without asking the guard, unless a part of its path matches the runner's list of secret names; keep the file out of the tree, or have its name listed |
 | a plan check and a review that guard against the same mistake | twice the partner calls, and nothing more caught |
 | a review `verdict` nobody routes | running out of rounds never fails the node, so without a switch on the verdict the run carries on as if the review had passed |
 | a watcher used instead of a reviewer | its notes do not stop a wrong choice; a review at the end caught what a watcher missed, for less |
