@@ -276,7 +276,7 @@ nodes:
 | `advise` | `plan` | no (default `false`) | the executor's first turn produces a plan, and the partner comments on it before any change |
 | `review` | `max_rounds` | yes | how many times the partner may send the work back in one attempt; running out of rounds never fails the node |
 | `review` | `verdict` | no | the name of a deliverable in the node's own `produces`, which receives the loop's final verdict |
-| `guard` | none | | takes no other field |
+| `guard` | none | | takes no other field; its decision deadline and the list of secret names whose reads always reach it are settings of the runner, not of the workflow (`runtime-contract.md`, "Partners") |
 | `watch` | `every` | yes | how many of the executor's tool calls pass between two wakes of the partner |
 | `watch` | `max_notes` | yes | how many notes the partner may leave in one attempt; the last one is kept for the end of the turn |
 
@@ -290,6 +290,10 @@ nodes:
   the harness's own default applies. An executor and its partner may share a harness and a model;
   for `review` that draws the warning `pair.same-model`, because a reviewer no stronger than the
   executor finds few of its defects.
+
+  <!-- UNFINISHED(codex-executor): what the runner does with a `guard` on an executor that runs on
+  codex, which the server accepts. -->
+  <!-- UNFINISHED(watch): what the runner docs say about `watch` on an executor that runs on codex. -->
 - **The partner's agent** is a pin in `agents:` (`link.unknown-agent` at `<node>.pair.<mode>.agent`,
   also when `agent` is missing), and a pin used only by a partner is a used pin (no `pin.unused`). The
   declaration carries no prompt or protocol text: the partner's prompt is its agent's prompt, and how

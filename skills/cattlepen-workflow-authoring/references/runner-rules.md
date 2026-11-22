@@ -40,7 +40,13 @@ When a run starts, the runner also refuses it for:
   the network, retried a few times and then permanent;
 - a repository using Git LFS on a runner without `git-lfs` (`workspace.lfs-unavailable`), or a
   submodule with a relative url while the runner's clone has no `origin` remote
-  (`workspace.submodule-relative-url`).
+  (`workspace.submodule-relative-url`);
+- a node with a `guard` partner whose executor the run puts on a harness other than `claude-code`
+  (`dispatch.unresolvable`, naming `guard` and the harness): the server checks a task's node override
+  only when it is written, so an override written before the node had its guard can still move it.
+
+<!-- UNFINISHED(codex-executor): whether the runner still refuses a `guard` on a codex executor that the
+server accepts (a rules-table row if it does), and the Windows decline of a guarded Codex node. -->
 
 A command an inline script calls is not looked up in advance: a missing `jq` or `gh` fails at that
 node, not at the start.
