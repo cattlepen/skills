@@ -67,7 +67,7 @@ Change the selection with `update_task{task_id, repo}` or `update_task{task_id, 
 `workflow_id` binds the task to a workflow; the task then launches its latest published version
 (`resolved_version`). A task without a workflow reports `launch_problem: {code:
 "process_not_selected"}`. Changing `workflow_id` with `update_task` clears the version pin, the
-per-node overrides and the queue entry.
+per-node and per-partner runtime overrides and the queue entry.
 
 To pin a version, which neither `create_task` nor `update_task` offers, use the API operation:
 
@@ -89,6 +89,39 @@ cannot see, is refused: 422 `task.unknown_runner` "runner key <id> is not visibl
 Pinning a key that is offline is accepted and leaves `launch_problem` `null`; the run would wait
 for that runner. Pin only when the user wants the work on one machine, for example the only one
 with a binding for a local repository.
+
+## Runtime overrides
+
+A task can run an agent node, or one of the node's partners (its `pair`: an adviser, a reviewer, a
+guard or a watcher), on another runtime than the workflow declares, without a new version. Neither
+`create_task` nor `update_task` offers it; the same `PATCH /tasks/{id}` through
+`mutate_api_operation` writes two fields of their own:
+
+```json
+{"operation": "PATCH /tasks/{id}", "request": {"path": {"id": "<task id>"}, "body": {
+  "exec_overrides": {"<node id>": {"harness": "codex", "model": "<model>", "effort": "high"}},
+  "partner_overrides": {"<node id>": {"review": {"harness": "claude-code", "model": "<model>"}}}}}}
+```
+
+- Both are keyed by the agent node's `id` (from the published declaration), `partner_overrides` then
+  by the partner's mode. Each value is a whole runtime: `harness` required, an absent model or effort
+  is the harness's own default.
+- A body that carries a field replaces that whole map; `{}` clears it, and leaving the field out keeps
+  it. A node override never changes the node's partners, and a partner override never changes its node.
+- They are checked against the version the task launches: a node that is not an agent node of it, or
+  a mode the node declares no partner in, is 422 `task.override_unknown_node` (with `mode` for a
+  partner); a partner on a harness other than `claude-code` or `codex`, or a node override that moves a
+  node with a `guard` or `watch` partner off those two, is 422 `task.override_harness_unsupported`.
+  The other refusals are in the repair skill's `references/codes.md`, section 3.
+- The partner's agent and its bounds cannot be overridden: they come from the declaration.
+- They are launch fields: refused with 409 `task.launch_frozen` while `frozen` is true, reset by a
+  workflow change, frozen into each new run, and an entry whose node or mode the version no longer
+  declares is dropped.
+
+The task as `GET /tasks/{id}` returns it carries `exec_overrides`, `partner_overrides` (`{}` when none)
+and `override_count` (the node overrides whose node the resolved version has, plus the partner
+overrides whose node declares that mode there). `GET /tasks/{id}/exec-profile` shows what each node and
+partner will run with (`runners-and-keys.md`).
 
 ## Parent and child tasks
 

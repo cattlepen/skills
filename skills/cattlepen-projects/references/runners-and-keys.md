@@ -38,14 +38,19 @@ All of these at once:
 - in self-hosted Cattlepen, the key's owner is a member of the task's project (the `project_id`
   filter above applies this);
 - every harness the workflow's agent nodes use is in `enabled_harnesses`, and every model a node
-  pins is in `models[harness]`;
+  pins is in `models[harness]`; a node's partners (its `pair`: an adviser, a reviewer, a guard or a
+  watcher, each with its own runtime on `claude-code` or `codex`) count the same way, so the key
+  must also enable each partner's harness and offer each model a partner pins;
 - `manual_dispatch_only` is `false`, or the task pins this key (`runner_key_id`);
 - the runner can reach every repository the run uses (checked only by the runner).
 
 When a run starts without a pin, it goes to the requester's own runner when one of theirs is
 online, otherwise to the shared pool. `GET /tasks/{id}/exec-profile` (through
 `read_api_operation`) shows, per agent node of the version the task launches, the harness, model
-and effort it will run with (`effective`), including task overrides.
+and effort it will run with (`effective`), including task overrides, and under `pair` the same for
+each of its partners, keyed by mode: `{agent, default, override, effective}` (`pair` is `{}` on a
+node without partners). While the task has a live run, `effective` is what that run was frozen
+with.
 
 ## What `launch_problem` checks
 
@@ -59,13 +64,15 @@ only key enabling its harness was offline. Codes, first found wins:
 | `no_published_version` | The workflow has no published version. |
 | `version_not_launchable` | The version has launch diagnostics (`diagnostics`). |
 | `version_missing` | The pinned version is gone. |
-| `model_required` | The node's harness requires a model and none is set. |
+| `model_required` | The node's harness requires a model and none is set (never a partner's). |
 | `runner_revoked` | The pinned key was revoked. |
 | `harness_disabled_on_runner` | The pinned key does not enable the node's harness. |
 | `model_missing_on_runner` | The pinned key does not offer the node's model. |
 | `no_runner_supports` | No visible key (without `manual_dispatch_only`) enables the harness or offers the model. |
 
-`launch_note: {code: "sole_runner"}` is not a problem: only one runner offers a model a node pins.
+The last three carry `mode` (`advise`, `review`, `guard`, `watch`) when the runtime at fault is one
+of the node's partners, and omit it when it is the node's own. `launch_note: {code: "sole_runner"}`
+is not a problem: only one runner offers a model a node or one of its partners pins.
 
 ## Creating a key (ask first)
 

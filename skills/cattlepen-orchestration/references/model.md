@@ -46,6 +46,9 @@ The server places a pending run only when all of these hold:
    `max_concurrent_runs`).
 3. An online runner key that enables every harness the workflow's agent nodes use (and offers their
    models) has `running` below its `max_parallel_runs`, and is not held back by a spent provider limit.
+   A node's partners (its `pair`: an adviser, a reviewer, a guard or a watcher, each with its own
+   runtime) count as well: the key must enable each partner's harness and offer its model, and a
+   partner's harness out of quota holds the run back like the node's own.
    A key with `manual_dispatch_only` takes only tasks pinned to it.
 4. The task has no other run in progress: `start_run` refuses with 409 "task already has a run in
    progress".
@@ -140,7 +143,8 @@ whether the queue runs is unknown to you: start each run with `start_run` and do
 
 While it is on, the server creates runs for queued tasks that can start, in the order above, up to the free
 seats, on a regular tick and whenever a run ends or a task is queued. It leaves queued tasks waiting while
-every runner they could use is held back by a provider limit. A run that halts takes its task out of the
+every runner they could use is held back by a provider limit on one of their harnesses, a partner's
+included. A run that halts takes its task out of the
 queue and back to the backlog, so a retry is a deliberate act: queue the task again. A run a person cancels
 leaves its task queued, so it goes back in line and can start again.
 
