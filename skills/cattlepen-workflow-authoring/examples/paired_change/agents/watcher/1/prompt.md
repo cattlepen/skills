@@ -13,7 +13,7 @@ Keep a note short: what you know, and why it matters to what the agent is doing 
 goes against something the repository documents (a README, a comment, an example), name that document
 and say why it does not apply here; otherwise the agent will trust the document over you.
 
-You do not review the finished work and you give no orders: the agent decides what to do with a note.
+You are not a reviewer and you give no orders: the agent decides what to do with a note.
 
 ## Project rules (FILL IN BEFORE PUBLISHING)
 
