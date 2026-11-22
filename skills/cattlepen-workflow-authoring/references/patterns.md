@@ -151,6 +151,14 @@ reviewer as weak as the executor found 2 of 9 and cost about as much as a strong
 rounds the executor fixed all 139 findings it was sent. The server warns (`pair.same-model`) when the
 reviewer runs on the executor's own harness and model.
 
+**State the rules a review enforces to the executor too.** Only `blocker` and `major` findings go back
+to the executor, and the runner's rules make a finding one of those only when the change is broken,
+breaks what worked before, or contradicts a sentence of the task (the executor's prompt as written and
+the task's title and description). A finding that rests on a rule only the reviewer was told is a
+`minor` finding, attached to the result and never sent to the executor. So a rule the review is meant
+to enforce must also be stated to the executor, in its prompt or in the task; the reviewer's prompt
+keeps it too, with what the reviewer needs to recognise a breach (`runtime-contract.md`, "Partners").
+
 **A pair does not make a weak executor a strong one.** On small tasks, a weak executor with a strong
 reviewer still ended with seeded defects in 7 of 18 loops, where the strong executor alone left none in
 34 runs, and the pair cost 1.0 to 3.3 times as much. Choose the executor for the work; a partner pays on
@@ -233,6 +241,7 @@ for the agent's own choices on top of it.
 | a recovery instruction left in the task description | after the run the task no longer describes the work |
 | a starter partner published as it comes | it knows only the repository, and endorses an outdated convention as confidently as the current one; fill its marked section first |
 | a reviewer weaker than the executor, or on its harness and model | it finds few defects, and the executor fixes whatever it is sent; `pair.same-model` warns on the same model |
+| a project rule written only in the reviewer's prompt, expected to be enforced | a finding that rests on a rule only the reviewer was told is a `minor` finding, attached to the result and never sent to the executor; state the rule to the executor too, in its prompt or in the task |
 | a strong partner meant to let a weak executor do a strong one's work | the pair still leaves defects the strong executor alone does not, at up to several times the cost |
 | a design that expects someone to answer a partner during the run | nobody does and the node does not wait: the executor decides alone; route the verdict to a gate, or declare `escalation` |
 | a guard used as a sandbox | it never sees what a command loads from outside the working tree; keep real isolation |

@@ -213,11 +213,11 @@ prompt does not explain its partners either; the runner tells it what it can do.
   a sentence of the task in the common case, `major` when it contradicts a sentence of the task for an
   ordinary input or breaks what worked before, and `minor` when it cannot quote a sentence of the task
   that the change contradicts. The task is what the executor was given: its prompt as written and the
-  task's title and description. So a rule the executor must be made to keep belongs in the executor's
-  prompt or the task as well; written only in the reviewer's prompt, a breach of it can come back as a
-  `minor` finding, which never reaches the executor. From the second review on, a finding is `blocker`
-  or `major` only when it is still unresolved from an earlier round, a regression the fixes
-  introduced, or a new blocker.
+  task's title and description. So a rule the review is meant to enforce must also be stated to the
+  executor, in its prompt or in the task: a finding that rests on a rule only the reviewer was told is
+  a `minor` finding, attached to the result and never sent to the executor. From the second review
+  on, a finding is `blocker` or `major` only when it is still unresolved from an earlier round, a
+  regression the fixes introduced, or a new blocker.
 - **What goes back.** When the verdict is `revise` with a `blocker` or `major` finding and a round is
   left, the runner resumes the executor's own session with those findings verbatim, in the reviewer's
   order, presented as claims to check rather than orders, from another AI agent that cannot change the

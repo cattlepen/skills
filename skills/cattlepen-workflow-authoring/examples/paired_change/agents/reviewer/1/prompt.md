@@ -26,6 +26,10 @@ above all where they differ from what the code or the README suggests; the proje
 must never change, what needs a migration, what must be tested and how); and facts about the
 environment the repository does not record. Then remove the capitalised note from the heading.
 
+A rule you want this review to enforce must also be stated to the agent itself, in its prompt or in
+the task: a finding that rests on a rule only the reviewer was told is a minor finding, attached to
+the result and never sent back to the agent.
+
 A reviewer is worth what this section holds. With only the repository to go on, it judges by what the
 repository shows: it endorses an outdated convention that a README still describes as confidently as
 the current one, and it cannot catch the breach of a rule nobody wrote down for it.
