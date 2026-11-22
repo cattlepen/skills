@@ -78,6 +78,31 @@ When they run:
 | `rework.feedback-not-produced` | E | `node "<n>" does not produce "<d>"` |
 | `rework.missing-budget` | E | `rework has no max_reworks and settings.max_rework_iterations is not set` |
 
+### Workflow: partners (`pair` on an agent node)
+
+Reported at `nodes.<name>.pair.<mode>...`, or `nodes.<group>.template.pair.<mode>...` for a dynamic
+group's agent template. The fix for each is in the authoring skill's `references/dialect.md`, "Common
+server diagnostics".
+
+| code | sev | path | message |
+|---|---|---|---|
+| `pair.unknown-mode` | E | `<node>.pair.<key>` | ``unknown partner mode "<key>" (expected `advise`, `review`, `guard` or `watch`)`` |
+| `pair.unknown-field` | E | `<node>.pair.<mode>.<field>` | ``a `<mode>` partner takes no field "<field>"`` |
+| `pair.missing-bound` | E | `<node>.pair.<mode>` (absent), `<node>.pair.<mode>.<field>` (0) | ``the `<mode>` partner declares no `<field>` `` / ``the `<mode>` partner's `<field>` is 0; a bound starts at 1`` |
+| `pair.harness-unsupported` | E | `<node>.pair.<mode>.runtime.harness` | ``the `<mode>` partner runs on <harness>; a partner runs on claude-code or codex`` |
+| `pair.harness-unsupported` | E | `<node>.pair.<mode>` | ``a `<mode>` partner sits only on an executor running on claude-code or codex; this node runs on <harness>`` (`guard` and `watch` only) |
+| `pair.verdict-not-produced` | E | `<node>.pair.review.verdict` | ``the review verdict "<d>" is not among the node's `produces` `` |
+| `pair.same-model` | W | `<node>.pair.review.runtime` | `the review partner runs on the executor's own harness and model; a reviewer no stronger than the executor finds few of its defects` (also when both name no model) |
+
+A partner also draws codes of the node rules, at its own path: `link.unknown-agent` at
+`<node>.pair.<mode>.agent` (its agent is not pinned, or it names none), and `agent.no-harness`
+(``the `<mode>` partner names no runtime harness``), `agent.effort-without-harness`,
+`agent.unknown-harness`, `agent.unknown-effort` and `agent.invalid-model` at
+`<node>.pair.<mode>.runtime.<field>`, judged against the partner's own harness. A runtime whose harness
+is missing or unknown draws only its `agent.*` code, never `pair.harness-unsupported` as well. A
+partner's type error (a negative or non-integer bound, a mode that is not a mapping, an unknown key in
+its `runtime`) is `yaml.parse`.
+
 ### Workflow: graph rules
 
 | code | sev | message |
@@ -134,7 +159,9 @@ When they run:
 
 `launchable` is true when the published declaration has no runtime error. `launch_diagnostics` can hold only
 `agent.no-harness`, `agent.effort-without-harness`, `agent.unknown-harness`, `agent.unknown-effort` and
-`agent.invalid-model`. A draft always reads `launchable: false`. Nothing else is checked: six workflows that
+`agent.invalid-model`, at a node's runtime or at a partner's (`<node>.pair.<mode>.runtime.<field>`), and
+`pair.harness-unsupported`; the path names the partner's mode. The other `pair.*` errors refuse publishing
+and are not checked again here. A draft always reads `launchable: false`. Nothing else is checked: six workflows that
 the runner refuses all read `launchable: true` (M).
 
 ## 3. Task level
@@ -145,16 +172,39 @@ the runner refuses all read `launchable: true` (M).
 |---|---|---|
 | `process_not_selected` | | the task has no workflow |
 | `no_published_version` | | the workflow has no published version |
-| `version_not_launchable` | `version, diagnostics` | the version the task would run has a runtime error (section 2) |
+| `version_not_launchable` | `version, diagnostics` | the version the task would run has a runtime error (section 2), a partner's included |
 | `version_missing` | `version` | the task is pinned to a version that no longer exists |
-| `model_required` | `node_id, node_name, harness` | the harness needs a model and the node names none |
+| `model_required` | `node_id, node_name, harness` | the harness needs a model and the node names none; never raised for a partner, whose two harnesses take a default model |
 | `runner_revoked` | `runner_key_id` | the task is pinned to a runner key you can no longer see |
-| `harness_disabled_on_runner` | `runner_key_id, runner_name, node_id, node_name, harness` | the pinned key does not enable that harness |
+| `harness_disabled_on_runner` | `runner_key_id, runner_name, node_id, node_name, mode?, harness` | the pinned key does not enable that harness |
 | `model_missing_on_runner` | the same plus `model` | the pinned key does not offer that model |
-| `no_runner_supports` | `node_id, node_name, harness, model?` | no runner key you can use enables that harness or offers that model (M) |
+| `no_runner_supports` | `node_id, node_name, mode?, harness, model?` | no runner key you can use enables that harness or offers that model (M) |
 
 It is computed over runner keys whether or not their runner is connected, and over the keys of whoever is
-looking (for a queued task, of whoever queued it). `null` does not mean a runner is online.
+looking (for a queued task, of whoever queued it). `null` does not mean a runner is online. The runtimes are
+checked node by node in document order, each node's own runtime first and then its partners' in byte order
+of the mode name (`advise`, `guard`, `review`, `watch`), each after the task's overrides. `mode` is present
+when the runtime at fault is a partner's, and absent when it is the node's own. `launch_note:
+{code: "sole_runner"}` is raised for a partner's model as for a node's.
+
+### Override refusals (`POST /tasks`, `PATCH /tasks/{id}`)
+
+A task overrides a node's runtime in `exec_overrides` (keyed by node id) and a partner's in
+`partner_overrides` (keyed by node id, then mode); neither `create_task` nor `update_task` takes them, so
+they are written through `mutate_api_operation`. Each override is checked against the version the task
+launches when it is written, and nowhere else.
+
+| code | status | fields | message (template) |
+|---|---|---|---|
+| `task.override_unknown_node` | 422 | `node_id, mode?` | `<id> is not an agent node of the version the task launches`; with `mode`: `` <id> is not an agent node of the version the task launches with a "<mode>" partner `` |
+| `task.override_unknown_harness` | 422 | `node_id, harness, mode?` | `"<h>" is not a known harness` |
+| `task.override_unknown_effort` | 422 | `node_id, effort, mode?` | `effort "<e>" is not on the <harness> scale` |
+| `task.override_invalid_model` | 422 | `node_id, model, mode?` | `a model is 1 to 128 characters with no whitespace or control characters` |
+| `task.override_harness_unsupported` | 422 | `node_id, mode, harness` | a partner override off the two partner harnesses: `a partner runs on claude-code or codex, not on <h>`; a node override that puts a node with a `guard` or `watch` partner on another harness (`mode` names the first such mode): `` a "<mode>" partner sits only on an executor running on claude-code or codex; the override runs the node on <h> `` |
+| `task.launch_frozen` | 409 | | the task has a run pending, active or cancelling; no launch field (pin, runner, either override map, `repo`, `readonly_repos`) can change |
+
+`mode` is present when the override is a partner's. A node override written while it was valid is not
+checked again when the launched version later gains a `guard` or `watch` on that node.
 
 ### Input readiness (`get_task_readiness` diagnostics)
 
@@ -207,6 +257,10 @@ declined run is deleted.
 | `project_full` | `used, max_concurrent_runs` | the project's run cap (self-hosted) |
 | `project_access_revoked` | | the run's creator is no longer a project member, or the project is gone |
 | `awaiting_source_runner` | `runner_id` | a resumed run waits for the runner that holds the original |
+
+A partner's harness and model count like the node's own: a reason that names a `harness` or a `model`
+may name a partner's, and no field says which node or mode it belongs to. Compare it with the run's
+`exec_profile`, where each agent node lists its partners' runtimes under `pair`.
 
 ### `halt_kind` (with `status: halted`)
 
