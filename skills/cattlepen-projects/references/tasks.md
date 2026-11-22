@@ -112,7 +112,10 @@ guard or a watcher), on another runtime than the workflow declares, without a ne
   a mode the node declares no partner in, is 422 `task.override_unknown_node` (with `mode` for a
   partner); a partner on a harness other than `claude-code` or `codex`, or a node override that moves a
   node with a `guard` or `watch` partner off those two, is 422 `task.override_harness_unsupported`.
-  The other refusals are in the repair skill's `references/codes.md`, section 3.
+  The server accepts a node override that puts a node with a `watch` partner on `codex`, but the
+  runner runs a watcher only beside an agent on `claude-code` and declines every run of that task
+  (`dispatch.unresolvable`): keep such a node on `claude-code`. The other refusals are in the repair
+  skill's `references/codes.md`, section 3.
 - The partner's agent and its bounds cannot be overridden: they come from the declaration.
 - They are launch fields: refused with 409 `task.launch_frozen` while `frozen` is true, reset by a
   workflow change, frozen into each new run, and an entry whose node or mode the version no longer

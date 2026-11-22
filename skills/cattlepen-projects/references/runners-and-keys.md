@@ -42,7 +42,14 @@ All of these at once:
   watcher, each with its own runtime on `claude-code` or `codex`) count the same way, so the key
   must also enable each partner's harness and offer each model a partner pins;
 - `manual_dispatch_only` is `false`, or the task pins this key (`runner_key_id`);
-- the runner can reach every repository the run uses (checked only by the runner).
+- the runner can reach every repository the run uses (checked only by the runner);
+- the runner can run every node where the run puts it (checked only by the runner, which declines the
+  run otherwise): on a Windows runner, no node with a `guard` partner runs its agent on `codex`; and
+  on a runner whose operator turned on the runner's own guard (`[guard] policy_file` in its
+  configuration), which judges every agent node of every run it takes, no agent node runs on
+  `cursor-cli` or `opencode`, nor on `codex` when the runner is on Windows. The server does not know
+  either rule and keeps placing such runs there, each declined and deleted, so the operator of a
+  runner with its own guard removes those harnesses from its key's `enabled_harnesses`.
 
 When a run starts without a pin, it goes to the requester's own runner when one of theirs is
 online, otherwise to the shared pool. `GET /tasks/{id}/exec-profile` (through
