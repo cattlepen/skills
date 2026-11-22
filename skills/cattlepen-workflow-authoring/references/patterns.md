@@ -8,6 +8,7 @@ Translate each part of the request into one construct:
 |---|---|
 | a decision ("if the tests pass", "if the owner approves") | a deliverable with a required `string` enum field, and a switch that routes every value |
 | a role ("a reviewer reads it") | an agent with one job and its own prompt |
+| a second agent inside one step ("review its work before it moves on", "it must follow our conventions", "never let it force-push") | a partner in that agent node's `pair`, with its own prompt and model ([Partners](#partners-a-second-agent-inside-a-node)) |
 | a deterministic step (run tests, commit, push, fetch, count) | an inline node |
 | an approval | a human gate whose prompt says where the evidence is and what each answer does |
 | "try again" | a rework with a head, a feedback deliverable, a budget and an exhaustion target |
@@ -124,6 +125,93 @@ cache path on something unique to the run (`run_id` from `run.json`).
 **Grow a graph one exercised step at a time.** Run the workflow after each addition. An irreversible
 tail (push, release) added without ever running it fails where it costs most.
 
+## Partners: a second agent inside a node
+
+A partner (`dialect.md`, "Partners") is a second agent with its own prompt and its own runtime, working
+beside a node's agent, the executor, inside that node: an adviser the executor consults (`advise`), a
+reviewer that can send the work back (`review`), a guard that judges the executor's actions (`guard`),
+or a watcher that leaves it notes (`watch`). Each one costs calls and time, so add one for a job the
+executor cannot do alone, and choose its model with the points below. The figures were measured on
+small tasks; read them as the direction of an effect, not as a benchmark.
+
+**A partner is worth what its prompt knows.** A partner changes the outcome when its prompt holds what
+the executor cannot read: the team's conventions, its policies, facts about the environment. With one
+partner model and two prompts, on small tasks, an executor that was confident but wrong ended right in
+22 of 24 runs when the partner's prompt held the team's rule, and in 0 of 18 when the partner knew only
+the repository. Without the rule the partner named both conventions and endorsed the outdated one the
+README described, and a stronger model alone with the same repository chose as the executor did. So the
+project's rules go into the partner's prompt. The starter partners in `examples/paired_change` are
+templates: each has one section marked `FILL IN BEFORE PUBLISHING` for those rules, and that section is
+the part that does the work.
+
+**Review with a model at least as strong as the executor.** The executor fixes whatever it is sent, so
+the reviewer is the only filter, and a loop's own fixes can break behaviour the review never looked at.
+On small tasks, reviewers stronger than the executor surfaced every seeded defect in the first round; a
+reviewer as weak as the executor found 2 of 9 and cost about as much as a stronger one, and over four
+rounds the executor fixed all 139 findings it was sent. The server warns (`pair.same-model`) when the
+reviewer runs on the executor's own harness and model.
+
+**A pair does not make a weak executor a strong one.** On small tasks, a weak executor with a strong
+reviewer still ended with seeded defects in 7 of 18 loops, where the strong executor alone left none in
+34 runs, and the pair cost 1.0 to 3.3 times as much. Choose the executor for the work; a partner pays on
+top of a capable one: an adviser that knows what the executor cannot, a reviewer that finds what it
+missed, a guard on its actions.
+
+**Choose an adviser for what it knows, not for its strength.** Relaying a rule written in its prompt
+does not take a strong model: on small tasks a cheaper model relayed a known rule as well as a stronger
+one, for much less. Where the adviser has to reason from the repository instead, that was not measured.
+
+**One partner per mistake.** A plan check (`advise` with `plan: true`) and a review on one node that
+guard against the same mistake doubled the partner calls and caught nothing more. Give each partner a
+mistake of its own to catch, or keep only one.
+
+**A partner's questions go to the result, not to a person.** Nobody answers a partner's question while
+the run is going, and the node never waits for an answer: the executor makes each open choice itself and
+names it in its result, so ask for those choices in a deliverable (`open_choices` in
+`examples/paired_change`). The cost is real: on small tasks, with a person's answer 6 of 6 runs passed,
+without one 0 of 8. When a person must decide, route the review's verdict (the deliverable its `verdict`
+names) through a switch to a human gate, or declare `escalation` so the executor can ask for itself
+("Ask instead of guessing" above).
+
+**A watcher relays what it knows while the work runs.** A watcher is woken every `every` tool calls of
+the executor and may leave a note, at most `max_notes` in one attempt, the last kept for the end of the
+turn. It pays when it knows facts or conventions the executor cannot read anywhere, and it is an
+addition to a reviewer, never a replacement: it does not prevent a wrong choice. Measured on small tasks
+over 83 executor runs:
+
+- No note came before a wrong choice was written (0 of 32). What the watcher changed came through its
+  last look at the end of the turn: 4 of 32 runs passed without that step, 26 of 32 with it.
+- A weak executor acted on notes the repository did not seem to contradict (7 of 7) and mostly declined
+  notes a README seemed to contradict (it adopted 3 of 28). A note that goes against a document has to
+  say why the document does not apply; the starter watcher's prompt asks for that.
+- A stuck executor got its hint before giving up in 3 of 4 runs.
+- On a task whose wrong first step later work builds on, the weak executor ended 0 of 2 with a watcher
+  and 2 of 2 with a review at the end, and the review cost less.
+- A watcher on a stronger model beside a cheap executor cost about as much as the executor's whole run,
+  and a small watcher repeated itself until its notes were spent. Keep `max_notes` small, and tell the
+  watcher to stay silent unless it has something the executor cannot read.
+
+### A guard is not a sandbox
+
+A guard is not a sandbox: it is a gate on the agent's own actions. It judges each tool call the agent
+chooses, from the call's text, the repository files the runner attaches and, with read tools, the files
+it opens inside the working tree before its deadline. It does not see code a command loads from anywhere
+else, such as an interpreter's own packages, a dependency, or something fetched at run time: on small
+tasks a harmful start-up file outside the tree was allowed in all 36 trials, in every configuration.
+
+- A small model judges the command line; following what a script runs takes a stronger model with read
+  tools.
+- A claim inside a command that the guard cannot check (that it is safe, approved, only a test) can turn
+  its deny into an allow. The starter guard's prompt tells it to judge what a command does, not what it
+  says about itself.
+- It held on clear-cut policy: on small tasks, force-push and deletion outside the working tree were
+  denied in 30 of 30 trials each, and 6 of 552 ordinary requests were denied. Write the policy as clear
+  rules about what an action does.
+- Each decision adds latency to the tool call it judges, even with a small model.
+
+Keep real isolation (accounts, permissions, networks) wherever an action could do harm, and use a guard
+for the agent's own choices on top of it.
+
 ## Anti-patterns
 
 | anti-pattern | what goes wrong |
@@ -143,3 +231,12 @@ tail (push, release) added without ever running it fails where it costs most.
 | the same instructions pasted into several prompts | the copies drift apart; one agent document can serve several nodes |
 | references to a deleted node left in prompts | agents look for a step that no longer exists |
 | a recovery instruction left in the task description | after the run the task no longer describes the work |
+| a starter partner published as it comes | it knows only the repository, and endorses an outdated convention as confidently as the current one; fill its marked section first |
+| a reviewer weaker than the executor, or on its harness and model | it finds few defects, and the executor fixes whatever it is sent; `pair.same-model` warns on the same model |
+| a strong partner meant to let a weak executor do a strong one's work | the pair still leaves defects the strong executor alone does not, at up to several times the cost |
+| a design that expects someone to answer a partner during the run | nobody does and the node does not wait: the executor decides alone; route the verdict to a gate, or declare `escalation` |
+| a guard used as a sandbox | it never sees what a command loads from outside the working tree; keep real isolation |
+| a plan check and a review that guard against the same mistake | twice the partner calls, and nothing more caught |
+| a review `verdict` nobody routes | running out of rounds never fails the node, so without a switch on the verdict the run carries on as if the review had passed |
+| a watcher used instead of a reviewer | its notes do not stop a wrong choice; a review at the end caught what a watcher missed, for less |
+| a watcher expected to stop a wrong choice in time | its notes came after the choice was written; what it changed came through its last look at the end of the turn |
