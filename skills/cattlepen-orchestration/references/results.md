@@ -11,21 +11,25 @@ that depends on it.
   markdown proposal as one string; a review gate's `{"decision": "approve", "note": null}`. When work was
   sent back, the same node completes again with a higher `iteration`; the last one on the path to the end
   is the final one.
-- **What a node's partners left open.** An agent node with partners (an adviser, a reviewer, a guard
-  inside the node) completes even when its review did not pass or its guard denied part of the work, and
+- **What a node's partners left open.** An agent node with partners (an adviser, a reviewer, a guard, a
+  watcher inside the node) completes even when its review did not pass or its guard denied part of the
+  work, and
   its partners' questions were not answered during the run. Before you call the work delivered, read
   what they left: the review's verdict deliverable when the workflow names one (`outcome` `ship` or
   `minor_only` passed; `round_cap`, `needs_person` or `partner_unavailable` did not; `findings` still
   open; `questions`, each a point with two readings), else the node's last `node_event` of `kind`
   `verdict`, whose message lists the open findings and the questions; the adviser's questions in its
-  `advice` notes; and each `node_event` of `kind` `deny`, a call the guard denied, which did not run (the
-  agent says in its result what it left out because of it, or that it stopped). Put the open findings,
-  the questions and what was left out in front of the person with the result: they are decisions the
-  run left to the task's owner. Where the run went from there shows in `branch_routed`.
+  `advice` notes; and each `node_event` of `kind` `deny`, a call a guard denied, which did not run (the
+  agent says in its result what it left out because of it, or that it stopped). A `deny` with `guard:
+  runner` came from the runner's own guard, which its operator may have turned on for every node, also
+  one that declares no partner. A watcher's `note` events are what it told the agent; they need no
+  answer. Put the open findings, the questions and what was left out in front of the person with the
+  result: they are decisions the run left to the task's owner. Where the run went from there shows in
+  `branch_routed`.
 - **Tokens.** Each `node_completed` carries the node's tokens, every agent of the node together, and on
-  an agent node `usage_by_role` with one share per role (`executor` or a partner's mode, `guard` for a
-  guard's decisions), harness and model (`watching.md`). Use it when the person asks what a partner
-  cost.
+  an agent node `usage_by_role` with one share per role (`executor`, a partner's mode, `guard` for a
+  guard's decisions and `watch` for a watcher's wakes, and `runner_guard` for the runner's own guard),
+  harness and model (`watching.md`). Use it when the person asks what a partner cost.
 - **Result files.** `get_run` returns `result_files`. They expire with the project's file retention
   (`file_retention_days` on `get_project`); a reference does not keep the bytes alive.
 - **Nothing on the runner.** As soon as a successful run has reported its end, the runner deletes the run's

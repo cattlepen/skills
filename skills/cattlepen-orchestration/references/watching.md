@@ -33,20 +33,23 @@ Event types, in the order a run produces them:
 - `run_dispatched` (a runner was offered the run), `run_started` (it accepted);
 - `node_started` (`node_id`, `iteration`, `attempt`), then `node_event` rows while it works: the agent's
   messages (`payload.kind` `say`), its commands (`bash`), the model in use (`binding`), `publish`, and
-  `delta` ("changed N files"). An agent node with partners (an adviser, a reviewer, a guard) adds their
-  rows: each carries `payload.partner`, the partner's mode, and the runner adds `ask` (the agent's
-  question to its adviser), `advice` (the answer, and any questions it left for a person), `verdict`
-  (one per review, and one with the outcome when the review loop ends) and `deny` (a call the guard
-  denied, which did not run: the tool, the reason and the attempt's deny counts; an allowed call adds
-  no row);
-  <!-- UNFINISHED(watch): the watcher's rows. -->
+  `delta` ("changed N files"). An agent node with partners (an adviser, a reviewer, a guard, a
+  watcher) adds their rows: each carries `payload.partner`, the partner's mode, and the runner adds
+  `ask` (the agent's question to its adviser), `advice` (the answer, and any questions it left for a
+  person), `verdict` (one per review, and one with the outcome when the review loop ends), `deny` (a
+  call a guard denied, which did not run: the tool, the reason, the attempt's deny counts, and `guard`,
+  `workflow` or `runner`; an allowed call adds no row) and `note` (a note the watcher left the agent,
+  with `delivery` `hook` while the agent worked or `resume` in one more turn after it). A runner whose
+  operator turned on the runner's own guard adds `deny` rows with `guard: runner` to agent nodes that
+  declare no partner as well;
 - `node_completed`, whose `payload.deliverables` is a list of `{name, value}`. It also carries the node's
   tokens, every agent of the node together: `token_usage` (uncached input and output), `cache_read`,
   `cache_write`.
   On an agent node that spent any, `usage_by_role` splits the same tokens into shares
   `{role, harness, model, token_usage, cache_read, cache_write}`, one per role, harness and model:
-  `role` is `executor` for the node's own agent or the partner's mode, and `model` is left out when the
-  runner cannot name it. The shares add up to the totals;
+  `role` is `executor` for the node's own agent, the partner's mode (`advise`, `review`, `guard`,
+  `watch`) or `runner_guard` for the runner's own guard, and `model` is left out when the runner cannot
+  name it. The shares add up to the totals;
 - `awaiting_answer` (the run parked on a question) and `answer_recorded` (`answer`, `by`);
 - `branch_routed` (`value`, `to`) and `rework_triggered` (`rework`): the workflow chose a path, or sent work
   back to an earlier node, which then runs again with the next `iteration`;
