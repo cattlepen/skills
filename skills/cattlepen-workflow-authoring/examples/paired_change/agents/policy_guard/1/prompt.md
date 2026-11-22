@@ -35,5 +35,12 @@ commands that must never run here (a deploy, a migration against a shared databa
 hosts a task may reach, and anything the list above allows that this project forbids. Then remove the
 capitalised note from the heading.
 
+The runner lets the agent read, search and list files inside the working tree, its inputs and the
+read-only repositories without asking this guard, unless a file's name is on the runner's list of
+secret names, which the runner's operator sets. So a rule here cannot keep the agent from reading such a
+file with those tools: keep the file out of the tree, or have its name put on that list. A rule you
+want this guard to enforce must also be stated to the agent itself, in its prompt or in the task: an
+agent that does not know a rule finds it one refusal at a time, and repeated refusals stop its work.
+
 A guard is worth what this section holds: the list above covers what is dangerous anywhere, and only
 this section knows what is dangerous here.
