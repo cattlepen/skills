@@ -14,8 +14,10 @@ is schema 2.
   `^[a-z][a-z0-9_]*$`, 1 to 64 characters (`doc.invalid-name`, `field.invalid-name`). A node and a
   rework cannot share a name (`name.collision`).
 - **Unknown keys are errors.** A misspelt or invented key is `yaml.parse`, and it hides every other
-  diagnostic until fixed. The exception is `escalation`, whose unknown keys report
-  `agent.escalation-unknown-field`. There is no `description` or `default` on a field.
+  diagnostic until fixed. The exceptions are `escalation`, whose unknown keys report
+  `agent.escalation-unknown-field`, and an agent node's `pair`, whose unknown modes and fields report
+  `pair.unknown-mode` and `pair.unknown-field`; a partner's `runtime` is as strict as the node's.
+  There is no `description` or `default` on a field.
 - **Size.** A document is at most 1 MiB (`doc.too-large`); an inline script is under 128 KiB with no
   NUL character (`inline.script-too-large`, `inline.script-nul`).
 - **No YAML anchors, aliases or merge keys** (`&a`, `*a`, `<<:`): the runner refuses them.
@@ -78,6 +80,7 @@ draft:
   type: agent
   agent: strategist                    # a key of agents:
   runtime: {harness: claude-code, model: claude-opus-5-5, effort: high}
+  pair: {...}                          # optional: second agents beside this one, one per mode
   consumes: {brief: $input}
   produces: [proposal]
   escalation: {max_rounds: 2, timeout_s: 86400}   # optional: the agent may ask a person
@@ -86,6 +89,7 @@ draft:
 
 - `runtime` is required (`agent.no-harness`). `harness` is `claude-code`, `codex`, `cursor-cli` or
   `opencode`; `model` and `effort` are optional for the first two. See [runtimes](#runtimes).
+- `pair` names partners, each with its own agent and runtime: see [Partners](#partners).
 - `consumes` and `produces` are optional; an agent with no `consumes` still sees the task's title
   and description.
 - `escalation`: `max_rounds` at least 1; `timeout_s`, if given, above 0. Without `timeout_s` a question
@@ -152,7 +156,9 @@ fan_out:
   next: after
 ```
 
-The template is an agent or inline node with no `next`; it reads its item as `$member`. Know the
+The template is an agent or inline node with no `next`; it reads its item as `$member`. An agent
+template may declare partners like any agent node; its diagnostics read `nodes.<group>.template.pair`.
+Know the
 limits before using one: later nodes cannot consume the members' results in a published workflow,
 each member works in its own copy of the repository whose edits are discarded after the group, a
 list longer than `limit` halts the run, and any failed member halts it. For one piece of work per item,
@@ -203,6 +209,95 @@ reworks:
 - `max_reworks: 2` means two passes back; the third route into the rework goes to `on_exhausted`.
   `0` sends the first route straight there. A rework without a budget is `rework.missing-budget`.
 - Any other cycle is `graph.cycle`: loops are reworks only.
+
+## Partners
+
+An agent node, top-level or a dynamic group's agent template, may name second agents that work beside
+its own agent (the *executor*) inside the same node: one partner per mode, in an optional `pair` map
+keyed by the mode. The modes are `advise`, `review`, `guard` and `watch`; being map keys, a second
+partner in one mode cannot be written. Which mode to use, and on which model, is in `patterns.md`
+("Partners"); what each partner does at run time is in `runtime-contract.md`.
+
+```yaml
+agents:
+  developer: {version: 1}
+  conventions_adviser: {version: 1}
+  strict_reviewer: {version: 1}
+  policy_guard: {version: 1}
+  observer: {version: 1}
+deliverables:
+  task: {version: 1}
+  change: {version: 1}
+  review_verdict: {version: 1}
+nodes:
+  develop:
+    type: agent
+    agent: developer
+    runtime: {harness: claude-code, model: claude-sonnet-5-5, effort: high}
+    pair:
+      advise:
+        agent: conventions_adviser
+        runtime: {harness: claude-code, model: claude-haiku-5-5}
+        max_calls: 4
+        plan: true                     # optional: the partner comments on a first-turn plan
+      review:
+        agent: strict_reviewer
+        runtime: {harness: claude-code, model: claude-opus-5-5, effort: high}
+        max_rounds: 3
+        verdict: review_verdict        # optional: a deliverable of this node's produces
+      guard:
+        agent: policy_guard
+        runtime: {harness: claude-code, model: claude-haiku-5-5}
+      watch:
+        agent: observer
+        runtime: {harness: claude-code, model: claude-haiku-5-5}
+        every: 5
+        max_notes: 3
+    consumes: {task: $input}
+    produces: [change, review_verdict]
+    next: done
+```
+
+| mode | field | required | meaning |
+|---|---|---|---|
+| every mode | `agent` | yes | a key of `agents:`, pinned like the node's own agent; the partner runs that agent's prompt |
+| every mode | `runtime` | yes | the partner's own `{harness, model, effort}`, under the rules of a node's runtime and judged against the partner's own harness |
+| `advise` | `max_calls` | yes | how many questions the executor may ask the partner in one attempt |
+| `advise` | `plan` | no (default `false`) | the executor's first turn produces a plan, and the partner comments on it before any change |
+| `review` | `max_rounds` | yes | how many times the partner may send the work back in one attempt; running out of rounds never fails the node |
+| `review` | `verdict` | no | the name of a deliverable in the node's own `produces`, which receives the loop's final verdict |
+| `guard` | none | | takes no other field |
+| `watch` | `every` | yes | how many of the executor's tool calls pass between two wakes of the partner |
+| `watch` | `max_notes` | yes | how many notes the partner may leave in one attempt; the last one is kept for the end of the turn |
+
+- **Bounds** (`max_calls`, `max_rounds`, `every`, `max_notes`) are integers of at least 1, with no
+  upper limit beyond the integer type, as for `escalation.max_rounds`. Absent or `0` is
+  `pair.missing-bound`; a negative or non-integer value is `yaml.parse`.
+- **Harnesses.** A partner runs on `claude-code` or `codex` (`pair.harness-unsupported` at
+  `<node>.pair.<mode>.runtime.harness`). `guard` and `watch` sit only on an executor whose own harness
+  is one of those two (`pair.harness-unsupported` at `<node>.pair.<mode>`); `advise` and `review` sit
+  on an executor of any harness. A partner's model is optional on both partner harnesses; without one
+  the harness's own default applies. An executor and its partner may share a harness and a model;
+  for `review` that draws the warning `pair.same-model`, because a reviewer no stronger than the
+  executor finds few of its defects.
+- **The partner's agent** is a pin in `agents:` (`link.unknown-agent` at `<node>.pair.<mode>.agent`,
+  also when `agent` is missing), and a pin used only by a partner is a used pin (no `pin.unused`). The
+  declaration carries no prompt or protocol text: the partner's prompt is its agent's prompt, and how
+  the partner and the executor talk is the runner's contract.
+- **The verdict deliverable** must be among the node's `produces` (`pair.verdict-not-produced`). Its
+  fields must be what the runner writes into it: `runtime-contract.md`, "Partners".
+- `pair` and `escalation` are independent: a node may declare either, both or neither. A null `pair`
+  or a null mode (`review: ~`) reads as absent.
+- **Launchability.** A partner's runtime errors (`agent.*` at `<node>.pair.<mode>.runtime.<field>`) and
+  every `pair.harness-unsupported` are launch diagnostics, so a version carrying one is not
+  launchable and its task's `version_not_launchable` shows the partner's path. The other `pair.*`
+  errors refuse publication only.
+- A task can override a partner's runtime by node id and mode (`partner_overrides`, beside the node's
+  own `exec_overrides`); the partner's agent and bounds cannot be overridden.
+
+Diagnostics are reported at `nodes.<name>.pair...`, or `nodes.<group>.template.pair...` for a
+template. A runtime whose harness is missing or unknown draws only its `agent.*` code, never
+`pair.harness-unsupported` as well; that also holds for the executor of a `guard` or `watch`.
 
 ## The agent document
 
@@ -271,7 +366,8 @@ characters, no whitespace); whether a runner offers
 it shows up as the task's `launch_problem`. A node without a model runs the runner's default model for
 that harness. Codes: `agent.unknown-harness`, `agent.unknown-effort`, `agent.invalid-model`,
 `agent.effort-without-harness`. A harness that requires a model and has none passes validation and
-fails at launch (`model_required`).
+fails at launch (`model_required`). A partner's `runtime` follows the same rules on its own harness,
+which is `claude-code` or `codex` ([Partners](#partners)).
 
 ## Common server diagnostics
 
@@ -287,7 +383,15 @@ fails at launch (`model_required`).
 | `graph.cycle` | turn the loop into a rework |
 | `graph.unreachable-node`, `graph.unreachable-rework` | wire it in or delete it |
 | `graph.unconsumed-input`, `graph.unconsumed-deliverable`, `graph.no-success-path`, `pin.unused` | warnings: dead weight, or a graph that cannot reach `end` |
-| `agent.no-harness` | add `runtime: {harness: ...}` |
+| `agent.no-harness` | add `runtime: {harness: ...}`; at `<node>.pair.<mode>.runtime.harness`, to that partner |
+| `agent.unknown-harness`, `agent.unknown-effort`, `agent.invalid-model`, `agent.effort-without-harness` at a `pair` path | fix that partner's `runtime` against its own harness's scale (Runtimes) |
+| `link.unknown-agent` at `<node>.pair.<mode>.agent` | pin the partner's agent in `agents:`, or give the partner an `agent` |
+| `pair.unknown-mode` | a key of `pair` that is not `advise`, `review`, `guard` or `watch`: fix the spelling |
+| `pair.unknown-field` | a field the mode does not take (for example `max_calls` under `review`): move it to its mode or delete it |
+| `pair.missing-bound` | add the mode's bound, at least 1: `max_calls` (advise), `max_rounds` (review), `every` and `max_notes` (watch) |
+| `pair.harness-unsupported` | at `...runtime.harness`: put the partner on `claude-code` or `codex`; at `<node>.pair.<mode>`: a `guard` or `watch` needs the node itself on one of those two |
+| `pair.verdict-not-produced` | add the `verdict` deliverable to the node's `produces`, or name one it produces |
+| `pair.same-model` | warning: the reviewer runs on the executor's harness and model; give it a model at least as strong as the executor's and a different one (`patterns.md`) |
 | `pin.unresolved` | publish the dependency, or select its draft with a binding |
 | `switch.unrouted-value` | route every enum value |
 | `rework.*` | see Reworks above |
@@ -296,6 +400,7 @@ fails at launch (`model_required`).
 
 Publishing a workflow mints an `id` for every node, template and rework that lacks one, rewrites each
 pin to `{version, id, sha256}`, writes `timeout_s` on every gate (86400 when omitted), drops legacy
-keys, and re-emits the YAML with its own key order and without comments. Agent and deliverable
+keys and an empty or null `pair`, and re-emits the YAML with its own key order (a node's `pair` right
+after its `runtime`) and without comments. Agent and deliverable
 documents are stored as saved. A published version never changes: the next change is a new version
 (`create_version`), seeded from this text, which keeps the node ids.
