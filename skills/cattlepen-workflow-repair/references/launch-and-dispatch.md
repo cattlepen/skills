@@ -186,8 +186,13 @@ Diagnose by elimination, cheapest first:
 5. **Input files.** The runner checks them again and, unlike the server, names the field: "$input <name>
    does not match its schema: <n> error(s): ..." (`input.invalid`).
 6. **Harnesses.** `dispatch.unresolvable` "<node> cannot be dispatched: <cause>", for example a harness
-   the runner is not configured for, or a partner on a harness other than `claude-code` or `codex`. A
-   run that carries no runtime for a declared partner is `exec-profile.invalid` (`codes.md`, section 5).
+   the runner is not configured for, a partner on a harness other than `claude-code` or `codex`, or a
+   node with a `guard` whose executor the run puts on a harness other than `claude-code` (a task's node
+   override written before the node had its guard: remove or change it). A run that carries no runtime
+   for a declared partner is `exec-profile.invalid` (`codes.md`, section 5).
+
+   <!-- UNFINISHED(codex-executor): a guarded node whose executor runs on codex, and the decline of a
+   guarded Codex node on Windows. -->
 
 If you or the user can reach the runner machine, its log has one line per refusal,
 `shepherd: run <run id> declined — <code>: <message>`, and `shepherd preflight` reproduces the start checks
