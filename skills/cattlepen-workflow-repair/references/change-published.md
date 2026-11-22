@@ -53,7 +53,9 @@ Measured facts:
 5. **Validate twice.** `validate_workflow{workflow_id, version: N+1}` must return no error. Then run the
    runner's checks on the draft (`runner-only-rules.md`): `shepherd validate` on its export when
    `shepherd version` works, otherwise every manual rule. Checking the draft is the point: once published,
-   a version the runner refuses stays in the version list for good.
+   a version the runner refuses stays in the version list for good. A review partner's `verdict`
+   deliverable is one such rule: the runner refuses it unless it declares exactly the fields it writes
+   (`validate.pair-verdict-unusable`, `codes.md`, section 5), and the server does not check them.
 6. **Publish, when the request needs a published fix.** A request such as "it will not publish, fix it" or
    "its runs vanish, fix it" is only met by a published version, so publish without asking again; ask first
    only when the user asked for a diagnosis or when the fix would change a route, prompt or output that

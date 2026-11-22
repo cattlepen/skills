@@ -34,6 +34,36 @@ for good were not seen.
   document with `get_doc{sha256: <the pin's sha256>}`, or find its entry id with
   `search_library{kind, q: <name>}` and call `get_declaration{kind, entry_id, version}`.
 
+### A node with partners
+
+An agent node may carry partners (`pair` in the declaration) that work inside the node beside its own
+agent, the executor: an adviser it can ask, a reviewer that can send the work back. They never appear as
+nodes or waits of their own; what they did is in the node's events (read from the runner's source):
+
+- Every `node_event` from a partner's own session carries `payload.partner`, the partner's mode, beside
+  its `kind`.
+- `kind: "ask"` is the executor's question to its adviser (the message is the question). `kind: "advice"`
+  is the adviser's answer: its first line, then `questions:` and the questions it left for a person;
+  `call` is `plan` for the plan check or the question's number, and `questions` how many it asked.
+- `kind: "verdict"` comes once per review (`round`, `verdict` `ship` or `revise`, and the counts
+  `blocker`, `major`, `minor` and `questions`), and once more when the review loop ends (`outcome`,
+  `rounds`, and in the message the findings left open and the questions).
+- The loop ends with one of five outcomes: `ship`; `minor_only` (only minor findings); `round_cap`
+  (blocker or major findings left after the last allowed round); `needs_person` (the same, with a
+  regression among them); `partner_unavailable` (the reviewer returned no valid verdict, even when asked
+  once more). **The node completes in all five.** A node that completed with open findings did not
+  fail, and nothing in the run's status says that its review did not pass. When the workflow names a
+  verdict deliverable, the node's `node_completed` carries it (`outcome`, `rounds`, `findings` still
+  open, `questions`), and the `branch_routed` after it shows where the workflow sent it; without one,
+  read the last `verdict` note.
+- Nobody is asked a partner's question during the run, and no wait appears for one: an adviser's
+  questions are in its `advice` notes, a reviewer's in the verdict. They are decisions the run left to
+  the task's owner.
+- `node_completed` also splits the node's tokens by role in `usage_by_role` (`executor`, or the
+  partner's mode), beside the totals, which count every partner call.
+- A partner's session fails or parks the node with its own harness's codes, as the executor's does
+  (sections 9 and 10).
+
 ## 8. The run halted
 
 `status: "halted"`. Read `halt_kind`, `outcome.reason` and `failed_node`.
@@ -143,7 +173,10 @@ at <time>` with `limit_wait`. `claude.budget` and `codex.budget` are provider us
 themselves. `claude.login_required` and `codex.login_required` mean the harness on the runner machine needs a
 login; they retry every 300 s and only the runner's operator can fix them (for codex the message names the
 `codex login --device-auth` command to run on the runner machine). A node parked longer than 48 hours in
-total fails with `node.park_exhausted`. The proof is `parked_reason` gone from `get_run`.
+total fails with `node.park_exhausted`. The proof is `parked_reason` gone from `get_run`. A node's
+partner parks it the same way, with the codes of the partner's own harness, which may differ from the
+executor's: compare the code with the run's `exec_profile`, which lists each node's partners under
+`pair`.
 
 ## 10. A node fails, or loops through its reworks
 
@@ -171,7 +204,7 @@ inline node gets one attempt.
 | `carrier.invalid_payload` | "output '<name>' (<name>.json) is not parseable" / "output '<name>' is not an object" | invalid JSON |
 | `carrier.oversize_signal` | "deliverable '<name>' is <n> bytes serialized (> <limit>...); ..." | a value above 64 KiB |
 | `agent.sentinel_missing` | "no SHEPHERD_STATUS: line in the ... result tail or full result after <n> continuation turn(s)" | the agent never ended with its status line; usually it stopped early or asked a question in prose. Not retried |
-| `agent.session_failed`, `claude.no_envelope`, `codex.failed` | the harness session failed or crashed | look at the node's `node_event` narration; often the harness on the runner |
+| `agent.session_failed`, `claude.no_envelope`, `codex.failed` | the harness session failed or crashed | look at the node's `node_event` narration; often the harness on the runner. A partner fails with these too ("the advise partner's session failed (<subtype>) before it replied" for an adviser): its notes carry `payload.partner`, and the failure's detail names its session as `partner_session_id` |
 | `agent.unexpected_escalation` | "the agent wrote questions.json but node '<node>' declares no escalation block; add `escalation:` to let it ask" | allow escalation, or tell the agent not to ask |
 | `command.not_found` | "executable not found: '<argv0>'" | an inline command missing on the runner |
 | `profile.missing`, `profile.unknown` | ".shepherd/profiles.yml not found in the checked-out tree" / "profile '<name>' is not defined in .shepherd/profiles.yml; has: ..." | define the profile in the repository |
@@ -214,7 +247,9 @@ cancellable in status <status>". Not exercised on the test installation. Proof: 
 say the wrong thing.
 
 1. Find what was produced: the `node_completed` events carry each deliverable's value (seen), and
-   `result_files` lists files the run returned (it was empty on the runs seen).
+   `result_files` lists files the run returned (it was empty on the runs seen). A node with a reviewer
+   completes even when its review did not pass: read its verdict ("A node with partners" above) before
+   blaming the prompt or the input.
 2. Find the path: `branch_routed` events show which way every switch went.
 3. Compare with the declaration of the run's version: does `outputs` list the deliverable you expected; did
    the switch route on the field you meant; does the agent's prompt ask for what the user wants; did the task's
