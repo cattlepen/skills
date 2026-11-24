@@ -110,15 +110,7 @@ both sources, not measured). Test them by hand the same way:
   `nodes.<node>.pair.review.verdict`, whose message prints the fields to declare). The server checks
   only that the node produces it. Compare every field's name, `type`, `required` and enum values, nested
   fields included, with the block in the `cattlepen-workflow-authoring` skill's `references/dialect.md`,
-  "Partners" (`codes.md`, section 5);
-- a `watch` partner on a node whose executor runs on `codex` (`validate.pair-mode-unsupported` at
-  `nodes.<node>.pair.watch`, or `nodes.<group>.template.pair.watch`). The server accepts a `watch` beside
-  an executor on `claude-code` or `codex`; the runner runs one only beside `claude-code`, and its message
-  says so and tells you to remove the mode from the node or run the node's executor on `claude-code`.
-  Test: for every node or template with `pair.watch`, the harness the runner resolves for its executor
-  is `claude-code`: its `runtime.harness`, or `claude-code` when it names none (a version without one
-  also draws the server's `agent.no-harness` and cannot launch). Fix: a new version with that node's
-  executor on `claude-code`, or without the `watch` (`codes.md`, section 5).
+  "Partners" (`codes.md`, section 5).
 
 ### Checks that depend on the runner machine
 
@@ -134,7 +126,7 @@ and the repository:
 | `workspace.lfs-unavailable` | `git-lfs` installed and configured on the runner, if a repository uses Git LFS |
 | `workspace.submodule-relative-url` | an `origin` remote, if `.gitmodules` uses relative URLs |
 | `input.invalid` | every input file valid against its deliverable (the server checks this too, see `launch-and-dispatch.md`, 5.2) |
-| `dispatch.unresolvable` | a runner configured for each harness the workflow names; on a Windows runner, no node with a `guard` partner whose executor runs on `codex`; on a runner whose operator turned on the runner's own guard, which judges every agent node, no agent node on `cursor-cli` or `opencode`, nor on `codex` when that runner is on Windows; and no task node override (`exec_overrides`) that puts a guarded node on a harness other than `claude-code` or `codex`, or a watched node on one other than `claude-code` (the server checks an override only when it is written, and accepts a watched node on `codex`). Causes, messages and fixes: `codes.md`, section 5 |
+| `dispatch.unresolvable` | a runner configured for each harness the workflow names; on a Windows runner, no node with a `guard` or a `watch` partner whose executor runs on `codex`; on a runner whose operator turned on the runner's own guard, which judges every agent node, no agent node on `cursor-cli` or `opencode`, nor on `codex` when that runner is on Windows; and no task node override (`exec_overrides`) that puts a guarded or watched node on a harness other than `claude-code` or `codex` (the server checks an override only when it is written). Causes, messages and fixes: `codes.md`, section 5 |
 
 ## Fix and proof
 

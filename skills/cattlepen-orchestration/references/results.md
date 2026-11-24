@@ -17,7 +17,10 @@ that depends on it.
   its partners' questions were not answered during the run. Before you call the work delivered, read
   what they left: the review's verdict deliverable when the workflow names one (`outcome` `ship` or
   `minor_only` passed; `round_cap`, `needs_person` or `partner_unavailable` did not; `findings` still
-  open; `questions`, each a point with two readings), else the node's last `node_event` of `kind`
+  open; `questions`, each a point with two readings; when a verdict did not fit its bound even with its
+  longest texts cut, whole entries were left out, and the last kept finding's `evidence`, or the last
+  kept question's `point` when no finding was kept, ends with how many), else the node's last
+  `node_event` of `kind`
   `verdict`, whose message lists the open findings and the questions; the adviser's questions in its
   `advice` notes; and each `node_event` of `kind` `deny`, a call a guard denied, which did not run (the
   agent says in its result what it left out because of it, or that it stopped). A `deny` with `guard:

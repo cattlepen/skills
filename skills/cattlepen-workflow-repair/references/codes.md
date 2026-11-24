@@ -5,8 +5,8 @@ Every code below is copied from the server's or the runner's source, or from a r
 filled in. Use this page to look a code up; the symptom pages say what to do about the common ones.
 
 What this page says about partners (an agent node's `pair`) and the runner's own guard was written on
-2026-11-22 from unreleased versions of Cattlepen and the runner, and was checked against no running
-installation.
+2026-11-22 from unreleased versions of Cattlepen and the runner, brought up to date with the runner on
+2026-11-24, and was checked against no running installation.
 
 ## 1. Server diagnostics (save, `validate_workflow`, publish, publication plan)
 
@@ -210,9 +210,8 @@ launches when it is written, and nowhere else.
 
 `mode` is present when the override is a partner's. A node override written while it was valid is not
 checked again when the launched version later gains a `guard` or `watch` on that node; the runner then
-declines the run (`dispatch.unresolvable`, section 5) when the override puts a guarded node on a harness
-other than `claude-code` or `codex`, or a watched node on a harness other than `claude-code`. The server
-accepts an override that puts a watched node on `codex`, and the runner declines that too.
+declines the run (`dispatch.unresolvable`, section 5) when the override puts a guarded or watched node
+on a harness other than `claude-code` or `codex`.
 
 ### Input readiness (`get_task_readiness` diagnostics)
 
@@ -351,26 +350,25 @@ same two problems.
 Three more causes of `dispatch.unresolvable` come from a node's `guard` or `watch` partner, when the run
 puts the node's executor where that partner cannot sit:
 
-- `its 'guard' partner runs here only on an executor running on claude-code or codex, and the execution
-  snapshot puts the executor on harness '<h>'`;
-- `its 'watch' partner runs here only on an executor running on claude-code, and the execution snapshot
-  puts the executor on harness '<h>'`;
+- `its '<mode>' partner runs here only on an executor running on claude-code or codex, and the execution
+  snapshot puts the executor on harness '<h>'`, for a `guard` or a `watch`;
 - on a Windows runner, for a guarded node whose executor runs on `codex`: `its 'guard' partner cannot run
-  on an executor running on codex on win32: ...`, the rest saying that the guard's Codex client is not
-  built for win32.
+  on an executor running on codex on win32`;
+- on a Windows runner, for a watched node whose executor runs on `codex`: `its 'watch' partner cannot run
+  on an executor running on codex on win32: the watcher's Codex client is not built for win32`.
 
 The server checks a task's node override only when it is written (section 3), so an override written
-before the node had its partner can cause the first two, and it accepts an override that puts a watched
-node on `codex`. Fix: remove or change the task's override for that node in `exec_overrides`. For the
-third, run the task on a runner that is not on Windows (pin it with `runner_key_id`), put the node's
-executor on `claude-code`, or remove the guard in a new version.
+before the node had its partner can cause the first. Fix: remove or change the task's override for that
+node in `exec_overrides`. For the other two, run the task on a runner that is not on Windows (pin it
+with `runner_key_id`), put the node's executor on `claude-code`, or remove the guard or the watch in a
+new version.
 
 A runner whose operator turned on the runner's own guard (`[guard] policy_file` in its configuration)
 guards every agent node, and declines a run with an agent node it cannot guard, with the cause `this
 runner guards every agent node, and its guard runs only on an executor running on claude-code or codex;
 the execution snapshot puts the executor on harness '<h>'` for a node on `cursor-cli` or `opencode`, or
-`this runner guards every agent node, and its guard cannot run on an executor running on codex on win32:
-...` on a Windows runner. That check comes before the workflow guard's own. The server's placement does
+`this runner guards every agent node, and its guard cannot run on an executor running on codex on
+win32` on a Windows runner. That check comes before the workflow guard's own. The server's placement does
 not know about that guard and keeps sending the runner such runs, each declined and deleted. Fix: the
 task runs on another runner, or its node on a harness that guard sits on (`claude-code`, or `codex` off
 Windows); the runner's operator can turn that guard off, or remove those harnesses from the key's
@@ -387,19 +385,14 @@ The runner's compiler repeats most server rules under its own codes (`parse.*`, 
 `publish.*` (the server's publish rules, as a local preview) and `script.*` (`script.syntax`,
 `script.unconsumed-input`, `script.undeclared-output`); those never decline a run, except `script.syntax`.
 
-Two partner codes are the runner's alone. The first is `validate.pair-mode-unsupported` at
-`nodes.<node>.pair.watch` (or `nodes.<group>.template.pair.watch`): the server accepts a `watch` partner
-on a node whose executor runs on `codex`, and this runner does not run one there; the message says so
-and tells you to remove the mode from the node or run the node's executor on `claude-code`. A version
-with such a node publishes, and every run of it is declined `bundle.invalid` with this code. Fix: a new
-version whose watched node's executor runs on `claude-code`, or without the `watch`. (The same code also
-covers a `guard` or `watch` on an executor on `cursor-cli` or `opencode`, which the server refuses
-first as `pair.harness-unsupported`.)
+The runner's compiler refuses a `guard` or a `watch` on an executor on `cursor-cli` or `opencode`
+(`validate.pair-mode-unsupported` at `nodes.<node>.pair.<mode>`), which the server refuses first as
+`pair.harness-unsupported`; it runs both beside `claude-code` and `codex`.
 
-The second is `validate.pair-verdict-unusable` at
+One partner code is the runner's alone: `validate.pair-verdict-unusable` at
 `nodes.<node>.pair.review.verdict`, ``the runner writes the review loop's verdict into deliverable
 '<d>': the node must produce it, and it must be a JSON deliverable whose fields are exactly these (its
-name, id and sections are yours): fields: {...}``. The server checks only that the node produces the
+name and id are yours): fields: {...}``. The server checks only that the node produces the
 verdict deliverable, so a version whose verdict deliverable declares other fields publishes and every
 run of it is declined `bundle.invalid` with this code. Fix: a new version of that deliverable with
 exactly the fields the message prints (the authoring skill's `references/dialect.md`, "Partners", has
@@ -427,10 +420,11 @@ them as a block), and a new workflow version that pins it.
 | `signal.timeout` | `no signal on topic '<topic>' within <n>s` (a gate's `timeout_s`) |
 | `map.over-limit` / `map.member_failed` | `map '<id>' sized <n> members over its limit <m> ...` / `map members failed: <ids>` |
 | `node.park_exhausted` / `node.park_churn` | parked past the 48-hour budget / re-parked too often |
-| `guard.breaker` | `<guards> denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was <tool> <command or path>: <reason>`, where `<guards>` is `the workflow's guard`, `the runner's guard` or `the runner's and the workflow's guards` |
-| `guard.unwitnessed` | on a Claude Code executor: `the executor's call <id> (<tool> <command or path>) ran with no decision from <guards>: the guard's hook did not fire (a managed policy or a broken hook can switch it off)`, or `... ran although <guard> denied it`; on a Codex executor: `the executor's call <item> (<tool> <command or path>) ran with no allow from <guards> recorded before it, and has already run: codex lets a call run when the guard's hook is skipped, fails or times out`, or `... ran with no allow from <guards>: the model's web search is the provider's hosted tool, which no hook sees, and the search has already run` |
+| `guard.breaker` | `<guards> denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was <tool> <command or path>: <reason>`, where `<guards>` is `the workflow's guard`, `the runner's guard` or `the runner's and the workflow's guards`; when some calls got no decision, `denied <n> action(s) and gave no decision on <u>` |
+| `guard.unwitnessed` | on a Claude Code executor: `the executor's call <id> (<tool> <command or path>) ran with no decision from <guards>: the guard's hook did not fire (a managed policy or a broken hook can switch it off)`, or `... ran although <guard> denied it`; on a Codex executor: `the executor's call <item> (<tool> <command or path>) ran with no allow from <guards> recorded before it, and has already run: codex lets a call run when the guard's hook is skipped, fails or times out`, `... ran with no allow from <guards>: the model's web search is the provider's hosted tool, which no hook sees, and the search has already run`, ``the executor's call <id> (Bash <command>) ran in <directory>, while <guards> judged it in the working directory <cwd>: codex runs a shell command in the `workdir` its model passes, which the guard's hook is never shown, and the call has already run``, or `... ran, and codex recorded no directory for it in its rollout, so the runner cannot tell whether it ran in the working directory <cwd>, where <guards> judged it` |
 | `guard.tmpdir_refused` | `the executor's private temporary directory <path> <what is wrong with it>, so this guarded attempt cannot run`; retried like a failed session |
-| `node.internal_error` | an unexpected error inside the runner; also a run that a runner with its own guard took up again after a restart, when its next node is on a harness that guard cannot sit on: `RuntimeError: this runner guards every agent node, and its guard ...` |
+| `agent.runtime_unsupported` | `<harness> requires an explicit model and supports neither effort nor extra_args`, for a `cursor-cli` or `opencode` node that names no model, or names an effort or extra arguments; also a run that a runner with its own guard took up again after the guard was turned on, when its next node is on a harness that guard cannot sit on: `this runner guards every agent node, and its guard ...`, the sentence of the decline (section 5); the node fails at once, before any agent starts |
+| `node.internal_error` | an unexpected error inside the runner |
 
 Outside this pattern: `plan-directed halt` (a `cancel` node was reached, M) and
 `switch '<node>': value '<v>' of '<field>' has no route and no default`.
@@ -445,43 +439,66 @@ reviewer that runs but returns no valid verdict, even when asked once more, is n
 loop ends `partner_unavailable` and the node completes. The same goes for running out of review rounds:
 it ends `round_cap` or `needs_person`, never a node failure.
 
-**A guard's denies and failures.** A guard never parks the node and never fails it with its harness's
-codes: a decision that misses the runner's deadline, a guard session that fails, parks or cannot start,
-and an answer that is not the decision object are each a deny, whose reason says which: `the guard gave
-no decision within <n>s`, `the guard's session failed (<subtype>, exit code <n>)`, `the guard could not
-decide: <code>: <message>`, `the guard's answer was not the JSON object the runner asked for: <text>`,
-`the guard's hook gave no answer, so the CLI blocked the call`, and, from the runner itself, `the runner
-could not ask the guard: <type>: <error>` or `the runner could not record the guard's decision: <error>`.
-Denies fail the node through `guard.breaker`, after three in a row or ten in one attempt, at once and
-with no further attempt; its `detail` holds `denied`, `in_a_row`, `tool`, `action` and `reason`. Read
-the node's `deny` notes (`run-time.md`, "A node with partners"):
+**A guard's denies and failures.** A decision that misses the runner's deadline, a guard session that
+fails, a launch that fails in a way a retry may cure, and an answer that is not the decision object are
+each a deny, whose reason says which: `the guard gave no decision within <n>s`, `the guard's session
+failed (<subtype>, exit code <n>)`, `the guard could not decide: <code>: <message>`, `the guard's answer
+was not the JSON object the runner asked for: <text>`, `the guard's hook gave no answer, so the CLI
+blocked the call`, and, from the runner itself, `the runner could not ask the guard: <type>: <error>` or
+`the runner could not record the guard's decision: <error>`. A denied call alone never fails the node:
+denies fail it through `guard.breaker`, after three in a row or ten in one attempt, at once and with no
+further attempt; its `detail` holds `denied`, `undecided` (the denies that were no decision of the
+guard's), `in_a_row`, `tool`, `action` and `reason`. Read the node's `deny` notes (`run-time.md`, "A
+node with partners"):
 
 - denies whose reasons are the guard's own judgement: the executor kept trying what the policy forbids,
   so state the policy in the executor's prompt or the task, or change the policy if it forbids ordinary
   work;
-- denies whose reasons the runner wrote (a deadline, a failed session, a provider limit or lost login, an
-  answer that was not the object): put the guard on a model that answers within the deadline, or fix
-  its harness on the runner. The deadline (`[guard] decision_timeout_s` in the runner's configuration,
-  30 s by default) also counts the wait for a free partner slot on a busy runner.
+- denies whose reasons the runner wrote (a deadline, a failed session, an answer that was not the
+  object): put the guard on a model that answers within the deadline, or fix its harness on the runner.
+  The deadline (`[guard] decision_timeout_s` in the runner's configuration, 30 s by default) also counts
+  the wait for a free partner slot on a busy runner: its operator raises `partner_max_concurrent` with
+  `claude_max_concurrent` and `codex_max_concurrent`.
+
+A failure of the guard's own launch follows the kind of its error, as an agent session of its harness
+does; only an error a retry may cure (`claude.no_envelope`, `codex.failed` and the like) is the
+counted deny `the guard could not decide: <code>: <message>` above. An error that parks a
+session parks the node with that code (`claude.budget`, `claude.login_required`, `claude.offline`,
+`codex.budget`, `codex.login_required`, `codex.offline`, `codex.rate_limited`; below); when the node
+resumes, the executor's session goes on and the call is decided when the executor makes it again. An
+error that can never succeed fails the node at once, with no further attempt, with that code (a missing
+CLI, `claude.not_found` or `codex.not_found`; credentials the runner cannot obtain, `claude.credentials`
+or `codex.credentials`; a request the provider refuses, `codex.bad_request`), the message opening with
+`<guard> could not decide the executor's call (<tool> <command or path>):`, where `<guard>` is `the
+workflow's guard` or `the runner's guard`: fix the guard's harness on the runner, or, for
+`codex.bad_request`, the guard's model or effort (its `runtime` in the workflow or the task's partner
+override, or `[guard]` for the runner's own guard). Neither a park nor such a failure sends a `deny`
+note or counts toward the breaker.
 
 `guard.unwitnessed` on a Claude Code executor (`detail`: `tool_use_id`, `tool`) means Claude Code on the
 runner machine ran a call without asking the guard, or ran one the guard denied: a managed Claude Code
 policy or a broken hook switched the hook off. Only the runner's operator can fix that machine's Claude
 Code configuration; until then run the task on another runner, or publish a version without the guard.
 
-On a Codex executor the guard detects and stops: codex lets a call run when the guard's hook gives no
-answer it can read, and the runner finds such a call in the executor's stream after it ran.
-`guard.unwitnessed` (`detail`: `item_id`, `tool`) then says the call has already run, so check what it
-did. Its usual causes on the runner machine: a start-up file of the account's shell that prints
-something (codex runs the hook through that shell, and the printed text spoils the answer), or a hook
-that never started. The hosted-search form means the executor's Codex model searches the web on the
-provider's side, where no hook sees it: run the node on a Codex model whose search goes through codex's
-own tool, or have the runner's operator turn Codex's web search off in the runner's codex settings. A
-call the hook could not ask the runner about is blocked by codex itself, out of the runner's sight: in
-codex's block message (as observed) the executor reads curl's own error and `shepherd: <guards> could
-not be asked (curl exit status <n>); the call is denied`, or `shepherd: curl not on PATH, so <guards>
-could not be asked; the call is denied` when the runner machine has no `curl`. Such a block has no
-`deny` note and does not count toward the breaker, and the blocked call leaves no note of its own; only
+On a Codex executor the guard detects and stops: codex lets a call run when the guard's hook never
+answers, and runs a shell command in a `workdir` its model passes, which the hook is never shown; the
+runner finds such a call in the executor's stream, or in codex's record of where the command ran, after
+it ran. `guard.unwitnessed` (`detail`: `item_id` and `tool`, or for a command that ran elsewhere
+`tool_use_id`, `tool` and `directory`) then says the call has already run, so check what it did. The
+first form means a call the runner cannot match to an allow the guard gave: usually a hook that never
+started on the runner machine (a start-up file of the account's shell that prints does not undo a
+deny). The directory forms mean the executor passed a
+`workdir` although its first turn told it to write `cd <dir> && <command>` (say so in the executor's
+prompt too), or that codex kept no record of where the command ran (tell the runner's operator). The
+hosted-search form means the executor's Codex model searches the web on the provider's side, where no
+hook sees it: run the node on a Codex model whose search goes through codex's own tool, or have the
+runner's operator turn Codex's web search off in the runner's codex settings. A call the hook could not
+ask the runner about is blocked by codex itself, out of the runner's sight: in codex's block message
+(as observed) the executor reads curl's own error and `shepherd: <guards> could not be asked (curl exit
+status <n>); the call is denied`, `shepherd: curl not on PATH, so <guards> could not be asked; the call
+is denied` when the runner machine has no `curl`, or `shepherd: <guards> gave an answer this client
+cannot read; the call is denied`. Such a block has no `deny` note and does not count toward the
+breaker, and the blocked call leaves no note of its own; only
 the executor's messages may mention it. Calls blocked that way point at the runner machine: tell its
 operator.
 
@@ -511,5 +528,5 @@ meets what parks a session, the node parks (below).
 codes exist. An adviser's or a reviewer's session parks the node with the same codes, for its own
 harness; when the node resumes, the executor's session continues and the partner runs again. A
 watcher's last look at the end of the turn parks the node the same way, with the codes of the watcher's
-harness; its wakes during the turn never park it. A guard's session never parks it: that decision is a
-deny (above).
+harness; its wakes during the turn never park it. A guard's launch parks it the same way, with the codes
+of the guard's harness, and the call is decided again when the executor makes it (above).
