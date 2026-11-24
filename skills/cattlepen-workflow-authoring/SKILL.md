@@ -165,9 +165,9 @@ example "published; to prove it, a task with a brief attached and a runner onlin
       in the design waits for an answer to a partner's question. A guard's rules are stated to the
       executor too, and none of them relies on the guard seeing a read inside the working tree, which
       on a Claude Code executor the runner allows without it ("A guard is not a sandbox" in
-      `references/patterns.md`). A `watch` sits only on a node whose executor runs on `claude-code`:
-      the server refuses one beside `cursor-cli` or `opencode`, and only the runner refuses one beside
-      `codex`.
+      `references/patterns.md`). A `guard` or a `watch` sits only on a node whose executor runs on
+      `claude-code` or `codex` (the server refuses one beside `cursor-cli` or `opencode`), and a
+      runner on Windows declines a run with a guarded or watched Codex node.
 - [ ] Every new node and rework in an editor action had a UUID `id`.
 - [ ] Every inline script writes every declared output on every path, markdown and html with their
       `.json` file too, and parses with `sh -n`.

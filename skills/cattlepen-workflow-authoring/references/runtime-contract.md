@@ -135,8 +135,8 @@ between them, and what a reader of the run sees. It also says what the runner's 
 runner's operator can turn on for every node, does to a node. Which mode to use, and on which model,
 is in `patterns.md`, "Partners".
 
-This section was written on 2026-11-22 from unreleased versions of Cattlepen and the runner, and was
-checked against no running installation.
+This section was written on 2026-11-22 from unreleased versions of Cattlepen and the runner, brought up
+to date with the runner on 2026-11-24, and was checked against no running installation.
 
 ### What each agent is told
 
@@ -148,10 +148,15 @@ adds its own text for the mode after it, as it does after the executor's prompt:
   task's title and description, and where the executor's inputs are; for a guard, the task's title and
   description only), what to look at (a plan, a question, the change, the one call to judge, or a
   digest of the work since the watcher last looked), the rules it works by, and the shape of its reply.
+  On a rework iteration the adviser, the reviewer and the watcher are also told that it is one, of how
+  many at most, which switch sent the work back and which input file holds the reason, so they judge
+  the work against what the rework asked for (a watcher on `claude-code` reads only inside the working
+  directory, below, so it is told where the reason is but cannot open it); the guard is not told.
 - **The executor** receives, after its usual additions, what it may do with an adviser (`advise`, below),
   in a revise turn the reviewer's findings and how to answer them (`review`, below), with a guard, on
-  the first turn of each attempt, what a denied call means (`guard`, below), and with a watcher, on the
-  same turn, what a note is (`watch`, below). Its first turn is not told that a review follows.
+  the first turn of each attempt that runs guarded, what a denied call means (`guard`, below), and with
+  a watcher, on the first turn of each attempt, what a note is (`watch`, below). Its first turn is not
+  told that a review follows.
 
 So a partner's prompt says who the partner is, what it cares about and what the project requires:
 conventions where they differ from what the repository shows, policies, facts about the environment.
@@ -261,9 +266,12 @@ runner tells it what it can do.
   `outcome`; `rounds`, the reviews run; `findings`, those still open, which are the findings of the last
   valid review that were never sent to the executor (its `minor` ones, and at `round_cap` and
   `needs_person` its `blocker` and `major` ones too); and `questions`, the distinct questions of every
-  review. A value over the 64 KiB bound has its longest texts cut, with a marker, until it fits. Its
-  exact fields are in `dialect.md`, "Partners". Without `verdict`, the outcome and what is left open
-  show only in the run's notes.
+  review. It always fits the 64 KiB bound: a value over it has its longest texts cut, with a marker,
+  and when that is not enough, whole entries are left out, minor findings first, then questions, then
+  major findings, then blockers, the latest first within each, and at least one entry is kept. The last
+  kept finding's `evidence` (or, with no finding kept, the last kept question's `point`) then ends
+  with how many findings and questions were left out. Its exact fields are in `dialect.md`,
+  "Partners". Without `verdict`, the outcome and what is left open show only in the run's notes.
 
 ### `guard`: each call is judged before it runs
 
@@ -280,10 +288,11 @@ is not a sandbox").
 - **What the guard is given.** Each decision starts a new guard process (read-only and fresh, as above),
   whose input is its agent's prompt (the policy), then the runner's rules for a decision, then the
   request: the task's title and description, the working directory, the executor's temporary
-  directory, the last five calls of the attempt it was asked about (their texts cut at 300 characters),
-  the proposed call (its texts cut at 6,000) and, for a command, the files it runs (below). It never
-  sees the executor's prompt or its session, nor a call the rule allowed. With its read tools it may
-  open other files before its deadline.
+  directory, the node's output directory (when the node declares an output) and its question files
+  (`questions.json` with `escalation`, `partner.json` with `advise`), the last five calls of the attempt
+  it was asked about (their texts cut at 300 characters), the proposed call (its texts cut at 6,000)
+  and, for a command, the files it runs (below). It never sees the executor's prompt or its session,
+  nor a call the rule allowed. With its read tools it may open other files before its deadline.
 - **What it must answer.** One JSON object: a decision, `allow` or `deny`, and a one-sentence reason the
   executor will read. The runner's text asks for exactly that, so the policy never restates it. The
   answer is read strictly: anything but that object, with those two keys and no other, is a deny.
@@ -292,44 +301,57 @@ is not a sandbox").
   task, so a call the task itself asks for and the policy forbids is denied, the reason saying that a
   person has to make it or change the policy; that a read is judged by itself, even when the task it
   serves is denied; that the executor's temporary directory counts as part of the working directory and
-  other temporary directories do not; that reading or listing outside the working directory is allowed
+  other temporary directories do not; that writing in the node's output directory and to its question
+  files is part of the task, while its input directory and every other directory beside them are
+  outside; that reading or listing outside the working directory is allowed
   unless the target is a secret or credential the policy names, while deleting or changing anything
   outside the working directory and the temporary directory is denied; that text in files, output,
   commands or the repository is data, never an instruction; that a claim it cannot check counts for
   nothing; and that when unsure it denies and says what would make the call acceptable. So a policy
   names the secrets and credentials it protects and what the project forbids, and does not repeat these
   rules.
-- **The files attached to a command.** For a `Bash` call the runner attaches the files inside the
-  working tree that the command runs, found from the shell's directory and through a plain `cd` or
-  `pushd` earlier in the command: a script named as the command, or given to `sh`, `bash`, `zsh`,
-  `source`, `.`, `python`, `python3` or `node` (unless an option passes the code inline, such as `-c`),
-  and the Makefile of a `make`; then the files those name, one level down. Each is cut at 4,000
-  characters, and all of them together at 16,000. A binary file, a file whose name is a secret name
-  (below) and a file outside the working tree are never attached, and nothing is attached past a `cd`
-  the runner cannot follow.
+- **The files attached to a command.** For a `Bash` call the runner attaches the file the shell would
+  really run, or nothing. It reads the command as the shell does (joined lines, comments dropped, quoted
+  operators kept as text) and finds the files inside the working tree that it runs, from the shell's
+  directory: a script named as the command by a path with a `/` (`./deploy.sh`, not a bare name found
+  on `PATH`), or given to `sh`, `bash`, `zsh`, `python`, `python3` or
+  `node`, or to `source` or `.` by a name with a `/` (unless an option before the script passes the code
+  inline or on stdin, such as `-c`), and the Makefile of a `make`; then the files those name, one level
+  down, found from the directory the script runs in, not from its own folder. It follows a `cd` or
+  `pushd` to one literal directory only where it is sure the shell made it: first in its list or after
+  other such moves joined by `&&`, outside a subshell, a compound command (`if`, `for`, `{ }` and the
+  like) and the background. Any other directory change, an `eval` or a here-document stops the
+  attachment there: nothing named after it is attached. Each file is cut at 4,000 characters, and all of
+  them together at 16,000. A binary file, a file outside the working tree and a file reached through a
+  secret name (below), whether the name is written in the command, is a link met on the way or lies on
+  the resolved path, are never attached.
 - **What the executor experiences.** An allowed call goes on as if there were no guard: it still meets
   the runner's own Claude Code permissions, and under a permission mode other than bypass their prompt,
   so a guard can only narrow what the runner's operator allowed. A denied call does not run: it comes
   back to the executor as the tool's error result, carrying `Denied by the workflow's guard: <reason>`.
-  The first turn of each attempt carries a section that says so and tells the executor never to retry
+  A denied call does not fail the node by itself; only the breaker does (below). The first turn of
+  each attempt that runs guarded carries a section that says so and tells the executor never to retry
   a denied action nor reach its effect another way (another tool, another command, a script); to carry
   on without the denied part when the task allows it and say in its result what it left out and why;
   otherwise to stop, and either ask a person (only when the node declares `escalation` with rounds
   left) or end with the status word `blocked`, naming the action and the guard's reason; and to keep
   scratch files in `$TMPDIR`, naming it in the path, because a bare `mktemp` may ignore it. A guarded
   executor has a private `$TMPDIR` for each attempt, and the guard is told its path. The status word is
-  not routable: a node whose executor ended `blocked` completes when its outputs are valid, so a
-  workflow that must know that a denied action left the task undone asks for it in a deliverable field
-  a switch routes.
+  a report for the person reading the run, and the runner does not act on it: a node whose executor
+  ended `blocked` completes when its outputs are valid. A workflow that must know that a denied action
+  left the task undone asks for it in a deliverable field a switch routes.
 - **The private temporary directory.** On macOS and Linux it is a short directory directly under the
   system's `/tmp`, with every link in that path resolved: `shd-` and a name derived from the attempt,
   30 bytes in all on macOS and 22 on Linux while `/tmp` resolves to its usual place, so a unix socket
   can still be bound in a directory made inside it. On Windows it is inside the run's own folder. It
   belongs to the attempt: every turn of the attempt finds it with what the earlier turns left in it,
-  also after a wait for a person or a restart of the runner, and another attempt, another rework
-  iteration or another member of a dynamic group gets another one (a node restarted at its first
-  attempt of the same iteration, in the same run, finds that attempt's directory again). The runner
-  makes it readable by its own user only. An attempt that finds at its path something that is not a
+  also after a wait for a person or a restart of the runner in the middle of the attempt, and another
+  attempt, another rework iteration or another member of a dynamic group gets another one. A park (a
+  usage limit or a login, the executor's or a partner's) ends the attempt, so the next attempt gets a
+  new, empty directory even when it resumes the executor's session. A halted run
+  resumed from a node (`POST /runs/{id}/resume`, after a failed node or at a node you name) restarts
+  that node at its first attempt and finds that attempt's directory emptied. The runner makes it
+  readable by its own user only. An attempt that finds at its path something that is not a
   directory, or is a link, or, on macOS and Linux, a directory of another user or with a mode other
   than `0700`, fails with `guard.tmpdir_refused` and is retried, in a new directory. It is deleted
   with the run's state, never before, but the operating system's own cleaning of `/tmp` can remove its
@@ -337,16 +359,20 @@ is not a sandbox").
   what has not been touched for three days, systemd's default configuration ages `/tmp` out after ten,
   and a `/tmp` held in memory is empty after a reboot.
 
-- **Reads the runner allows without the guard.** A `Read`, `Grep` or `Glob` is allowed by the runner's
-  rule, with no model and nothing published, when its target, followed through every link, lies inside
-  the working directory, the attempt's exchange directory (the executor's inputs) or a read-only
-  repository's checkout, and no part of its path matches a secret name; a `Grep` of a directory must
-  also name a `glob` that no secret name can match, and a `Glob`'s pattern must not be able to list one.
-  The rule only ever allows. Everything else goes to the guard: every command, write and edit, every
+- **Calls the runner allows without the guard.** A `Read`, a `Grep` of one file or a `Glob` is allowed
+  by the runner's rule, with no model and nothing published, when its target, followed through every
+  link, lies inside the working directory, the attempt's exchange directory (the executor's inputs) or
+  a read-only repository's checkout, and no part of its path matches a secret name; a `Grep`'s `glob`
+  must not be able to match a secret name, and a `Glob`'s pattern must not be able to list one. A
+  `Write` or `Edit` is allowed by the rule only when its target is exactly one of the files the runner
+  requires of the node: an output's `.json` and its body file, `questions.json` when the node declares
+  `escalation`, `partner.json` when it declares `advise` (never a review's verdict, which the runner
+  writes), and only when no link is at that path or on its way. The rule only ever allows. Everything
+  else goes to the guard: every command, every other write and edit, a `Grep` of a directory, every
   other tool (the session's own, such as its to-do list, included), a read in the temporary directory
-  or outside those places, a read through a link that leads outside them, a path holding `~` or `$`, and
-  every read the rule cannot clear. So a policy cannot forbid a read the rule allows: the guard never
-  sees it.
+  or outside those places, a read through a link that leads outside them, a path holding `~` or `$`,
+  and every call the rule cannot clear. So a policy cannot forbid a read the rule allows: the guard
+  never sees it.
 - **The secret names** are a list on the runner, set by its operator (`[guard] secret_patterns` in the
   runner's configuration): by default `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`,
   `.npmrc`, `.pypirc`, `.netrc` and `.git-credentials`, matched against each part of a path without
@@ -356,41 +382,69 @@ is not a sandbox").
   name goes onto the list; a command that reads it reaches the guard either way.
 - **The deadline.** One decision may take `[guard] decision_timeout_s` of the runner's configuration
   (30 seconds by default), counted from when the runner receives the call, including any wait for a
-  free partner slot (a runner process runs a few decisions at once, 3 by default). A decision past it
-  is a deny. So is a guard session that fails, one that cannot start or meets a provider limit or a lost
-  login, and an answer that is not the object; the reason says which. A call Claude Code cannot ask the
-  runner about is blocked by Claude Code itself, and the runner counts it as a deny. A guard that cannot
-  be reached therefore denies every call: it fails closed, never open.
+  free partner slot (a runner process runs `partner_max_concurrent` decisions at once, 3 by default;
+  an operator who raises `claude_max_concurrent` or `codex_max_concurrent` raises it with them:
+  otherwise calls wait past the deadline on a busy runner and are denied). A decision past it is a
+  deny. So is a guard session that fails, a launch that fails in a way a retry may cure (a session
+  that ended without its result, say), and an answer that is not the object; the reason says
+  which. A call Claude Code cannot ask the runner about is blocked by Claude Code itself, and the
+  runner counts it as a deny. A guard that cannot be reached therefore denies every call: it fails
+  closed, never open.
+- **A guard whose launch fails.** The guard's launch is handled by the kind of its error, as an agent
+  session of its harness is. An error that parks a session parks the node (a provider usage limit, a
+  lost login, the provider offline, a codex rate limit); an error that can never succeed fails the
+  node at once, with no further attempt, with that error's code and a message naming the guard (a
+  missing CLI, `claude.not_found` or `codex.not_found`, credentials the runner cannot obtain, a request
+  the provider refuses); only an error a retry may cure is a deny the breaker counts (above). When the
+  node parks or fails this way, the call is answered as a deny, the turn stops, no `deny` note is sent
+  and the breaker counts nothing; after a park the executor's session goes on and the call is decided
+  when it is made again.
 - **The breaker.** Three denies in a row, or ten in one attempt, stop the executor's turn, and the node
-  fails at once with `guard.breaker`, with no further attempt, so the run halts. Any allow, the rule's
-  included, ends a row. The counts carry across the attempt's turns and start again in a new attempt.
+  fails at once with `guard.breaker`, with no further attempt, so the run halts. Its message says how
+  many calls the guard denied and how many got no decision (a late or failed decision, an unreadable
+  answer). Any allow, the rule's included, ends a row. The counts carry across the attempt's turns and
+  start again in a new attempt.
 - **The witness.** Every call whose result comes back to the executor must have had a decision. A call
   that ran with none (the guard's hook did not fire: a managed Claude Code policy or a broken hook can
   switch hooks off), or a denied call that ran anyway, stops the turn, and the node fails at once with
   `guard.unwitnessed`, naming the call. A call Claude Code refused for its input before asking needs no
   decision.
+- **What runs with no decision.** The guard judges the executor's tool calls, nothing else. A
+  repository's own Claude Code hooks run with no decision, because Claude Code starts them outside
+  the tool calls (measured on Claude Code 2.1.330: a project's `SessionStart` hook ran and the guard
+  was never asked). Arming a guard or a watcher on Claude Code also turns back on the hooks that a
+  user, project or local `disableAllHooks: true` switched off; a managed policy's setting still wins.
+  A skill's inline shell command does not run at all on a guarded executor: the skill keeps its text.
 - **Nothing is cached.** A turn that runs again, in a new attempt or a resumed run, has its calls decided
   again. In a dynamic group each member is guarded on its own, with its own deny counts and temporary
   directory.
 
 **On a `codex` executor: detect and stop.** Codex also asks the runner before each tool call, and a call
-the guard denies never runs. But codex lets a call run when its hook gives no answer it can read, so the
-runner also reads the executor's stream and checks every call it shows against an allow the guard gave.
-What differs from the above:
+the guard denies never runs. But codex lets a call run when its hook never answers, so the runner also
+reads the executor's stream, and codex's own record of where each command ran, and checks every call
+against an allow the guard gave. What differs from the above:
 
-- **What it guarantees, and what it does not.** A denied call never runs. A call that got past the hook
-  (the hook never started, or something on the runner machine, such as a shell start-up file that
-  prints, spoiled its answer) is found only after it ran: the turn is stopped and the node fails at once
-  with `guard.unwitnessed`, saying that the call has already run, but the call's effect stays. On
-  `claude-code`, a hook that cannot answer blocks the call instead.
+- **What it guarantees, and what it does not.** A denied call never runs, whatever the hook's shell
+  prints as it starts (a shell start-up file that prints does not undo a deny). A call that got past
+  the hook (its client never started), and a shell command that ran in another directory than the one
+  the guard judged it in (below), are found only after they ran: the turn is stopped and the node fails
+  at once with `guard.unwitnessed`, saying that the call has already run, but the call's effect stays.
+  On `claude-code`, a hook that cannot answer blocks the call instead.
+- **Where a command runs.** Codex lets its model pass a `workdir` with a shell command and runs the
+  command there, and the guard is shown the command alone, which it judges as run in the working
+  directory. So the first turn's section tells the executor never to pass `workdir`, and to put
+  `cd <dir> && ` in front of a command instead, which the guard follows. A command that ran in another
+  directory anyway fails the node with `guard.unwitnessed`, naming the directory it ran in; so does a
+  completed command whose directory codex did not record.
 - **Every call goes to the guard.** Codex reads, searches and lists files with commands, and the
   runner's rule allows only Claude Code's own file tools, so every call is a decision of the guard, with
   its latency.
-- **A denied call** comes back to the executor as the tool's output, which codex words `Command blocked
-  by PreToolUse hook: <reason>` (as observed with the codex version the runner was checked against),
-  the reason opening `Denied by the workflow's guard: `; the first turn's section says so. A call the
-  runner could not be asked about is blocked by codex itself: it has no `deny` note and does not count
-  toward the breaker.
+- **A denied call** comes back to the executor as the tool's output, which for a shell command codex
+  words `Command blocked by PreToolUse hook: <reason>. Command: <command>` (measured on codex-cli
+  0.156.1; the wording differs by tool), the reason opening `Denied by the workflow's guard: `; a line
+  the hook's shell prints on stderr as it starts can come before the reason. The first turn's section
+  says so. A call the runner could not be asked about is blocked by codex itself: it has no `deny`
+  note and does not count toward the breaker.
 - **No interactive sessions.** A guarded Codex executor cannot open an interactive terminal session and
   runs every command with its input closed, because input typed into such a session would reach no
   guard. Work that needs one (an interactive database shell, a REPL fed line by line) cannot be done
@@ -401,12 +455,18 @@ What differs from the above:
   searches fails its node with `guard.unwitnessed`, the reason naming the hosted search. Run such an
   executor on a model whose search goes through codex's own tool, which the guard decides like any
   call, or have the runner's operator turn Codex's web search off in the runner's codex settings.
-- **The repository's own codex hooks.** Arming the guard makes codex run, without asking, the hooks the
-  repository under work declares for codex.
+- **Hooks run without codex's trust check, outside its sandbox.** Arming a guard or a watcher on a Codex
+  executor makes codex run, without asking, every enabled hook whose trust it never recorded or that
+  changed since, among them the hooks a repository declares for codex when codex's configuration
+  trusts that project, and codex runs a hook outside its sandbox. Measured on codex-cli 0.156.1: under
+  a `workspace-write` sandbox policy in the runner's codex settings, which a guarded executor keeps, a
+  trusted repository's own never-trusted hook ran before each call and wrote outside the sandbox's
+  writable roots, where the executor's own write was refused. The runner allows this: the guard judges
+  the executor's calls, not the hooks.
 - **A sub-agent's calls** reach the guard but never the executor's stream, so the stream cannot show
   them; the guard still decides them.
-- **The rest is as on `claude-code`:** the request and its attached files, the deadline, the breaker,
-  the `deny` notes, the private `$TMPDIR` and the first-turn section.
+- **The rest is as on `claude-code`:** the request and its attached files, the deadline, a guard that
+  whose launch fails, the breaker, the `deny` notes, the private `$TMPDIR` and the first-turn section.
 - **On a Windows runner** a guarded Codex node does not run: the runner declines the run before any
   node starts (`dispatch.unresolvable`, naming the platform). The server does not know that rule, so it
   deletes the run, and the task can be placed on the same runner again (`runner-rules.md`).
@@ -432,8 +492,15 @@ in a workflow turns it off, and the operator's policy outranks the workflow's. I
   guard, and be stopped by one.
 - **Where it cannot sit.** With its own guard, a runner declines a run with an agent node on
   `cursor-cli` or `opencode`, or on `codex` on a Windows runner, before any node starts
-  (`dispatch.unresolvable`): it never runs a node unguarded.
+  (`dispatch.unresolvable`): it never runs a node unguarded. A run it takes up again after its operator
+  turned the guard on is not checked again at its start: a node that already finished keeps its
+  result, and the next node on such a harness fails at once, before any agent starts and with no
+  further attempt (`agent.runtime_unsupported`, with the same sentence as the decline), which halts the
+  run naming the node. An executor first guarded in the middle of an attempt is told about the guard on
+  the first turn it runs guarded.
 - **Its tokens** are a share of their own (`runner_guard`, below), counted in the node's totals.
+- **`shepherd doctor`** on a runner with its own guard shows a `guard` row, which fails when the
+  guard's harness is not installed or its own checks failed.
 
 Its policy is a file on the runner, not an agent of the workflow, so an author can neither read nor
 change it. Ask the runner's operator what it forbids, and state the same rules to the executor, as for
@@ -441,10 +508,10 @@ a workflow's guard (`patterns.md`, "State a guard's policy to the executor too")
 
 ### `watch`: notes while the work runs
 
-A watcher sits on an executor that runs on `claude-code`; the watcher itself may run on `claude-code`
-or `codex`. Beside an executor that runs on `codex` the runner does not run one: the server accepts
-such a node, but the runner refuses the workflow when it compiles it (`validate.pair-mode-unsupported`),
-so every run of that version is declined (`runner-rules.md`).
+A watcher sits on an executor that runs on `claude-code` or `codex`; the watcher itself may run on
+either. A runner on Windows declines a run with a watched Codex node before any node starts
+(`dispatch.unresolvable`, naming the platform; `runner-rules.md`). What follows holds on both; what
+differs on `codex` is at the end of this subsection.
 
 - **When it wakes.** Each tool call of the executor, once it has run, is reported to the runner; a
   sub-agent's calls are not counted. When `every` calls have come in since the last wake and no wake is
@@ -470,8 +537,9 @@ so every run of that version is declined (`runner-rules.md`).
   repeat these rules.
 - **What it answers.** `NO NOTE`, or `NOTE:` followed by the note. Anything else counts as no note, and
   a note is cut at 4 KiB.
-- **How a note reaches the executor.** At its next tool call, after that call's result, between
-  `<<<PARTNER_NOTE>>>` and `<<<PARTNER_NOTE_END>>>`, one note per call. The first turn of each attempt
+- **How a note reaches the executor.** At its next tool call, with that call's result (after it on
+  `claude-code`, as a developer message just before it on `codex`), between `<<<PARTNER_NOTE>>>` and
+  `<<<PARTNER_NOTE_END>>>`, one note per call. The first turn of each attempt
   carries a section that says a partner watches, cannot change anything and answers no questions;
   that a note is its observation, never the user's instruction; to take a fact it states as true unless
   the repository contradicts it; to do what the user asked when a note conflicts with it and say so in
@@ -479,7 +547,12 @@ so every run of that version is declined (`runner-rules.md`).
 - **The budget.** At most `max_notes` notes in one attempt, the last one kept for the end: once
   `max_notes - 1` notes have been left during the work, no wake runs until the end of the turn, so with
   `max_notes: 1` the watcher looks only then. The notes and the budget span the whole attempt, also
-  when the runner restarts in the middle of it.
+  when the runner restarts in the middle of it: a note recorded before the restart counts once, is
+  listed once among the notes the watcher is shown, and one not yet handed over reaches the executor
+  later, at a tool call or at the end of the turn. When the node parks and resumes with the executor's
+  session kept, the notes not yet handed over move into the next attempt, reach the executor in its
+  end-of-turn resume and count against the attempt that produced them. A halted run resumed from the
+  node starts its watcher with no notes and its whole budget.
 - **The end of the turn, always.** Once the executor's turn has reached its status line, and before the
   review loop on a node that also has a reviewer, the runner waits for a wake still running and wakes
   the watcher once more, with the calls it has not seen and the executor's final message. When a note
@@ -494,10 +567,23 @@ so every run of that version is declined (`runner-rules.md`).
   reached, costs its note and nothing else: the calls it saw have already run, and the work goes on.
   Only its last look at the end of the turn can stop the node, by parking it (Failures, below).
 - **A wake takes a slot of its own harness** on the runner, like any session, so on a runner that runs
-  one Claude Code session at a time, a `claude-code` watcher's wakes due during the executor's turn wait
-  for that turn's end, and their notes reach the executor only in the resume after it.
+  one session of a harness at a time, a watcher on the executor's own harness has its wakes due during
+  the executor's turn wait for that turn's end, and their notes reach the executor only in the resume
+  after it.
 - **Nothing inside a turn is replayed.** A turn that runs again (a new attempt, a resumed run) is
   watched again. In a dynamic group each member has its own watcher, cadence and note budget.
+
+**On a `codex` executor** a note arrives as a developer message just before the call's output, and the
+first turn's section says so. What else differs from the above:
+
+- **Calls the watcher never sees.** A command that failed to start is not reported to it (measured on
+  codex-cli 0.156.1). A failed command is shown in the digest as failed, with its exit code.
+- **A shell start-up file that prints to standard output loses the note.** Codex runs the hook through
+  the account's shell and reads the hook's whole standard output as the answer, so such a line spoils
+  it: the note is lost, and the call runs on (measured on codex-cli 0.156.1).
+- **Hooks run without codex's trust check.** Arming a watcher makes codex run every enabled hook it has
+  not trusted, outside its sandbox, as arming a guard does (`guard`, above, with what was measured). A
+  node with both carries the guard's hook and the watcher's on every call.
 
 ### A partner's questions
 
@@ -526,7 +612,7 @@ alone in a deliverable: its final message is not one.
   | kind | when | message | other fields |
   |---|---|---|---|
   | `ask` | the executor's question is put to the adviser (never for a plan, nor for a question that is not asked) | the question | `partner: advise` |
-  | `advice` | after each adviser call | the advice's first line (`(no advice)` when there is none), then `questions:` and one `- <question>` line each | `partner: advise`, `call` (`plan`, or the question's number from 1), `questions` (a count) |
+  | `advice` | after each adviser call | the advice's first line (`(no advice)` when there is none), then `questions:` and one `- <question>` line each; at most 2,000 characters, the questions kept first (past that, `(<n> more question(s) not listed)`) and the advice line cut with `…` | `partner: advise`, `call` (`plan`, or the question's number from 1), `questions` (a count, all of them) |
   | `verdict` | after each review that returned a valid verdict | `round <n>: <ship or revise> · <b> blocker · <m> major · <mi> minor · <q> question(s)` | `partner: review`, `round`, `verdict`, and the counts `blocker`, `major`, `minor`, `questions` |
   | `verdict` | once, when the review loop ends | `<outcome> after <n> review(s)`, then `open findings:` with one `- <severity> <file>:<line>: <claim>` line each, and `questions:` with one `- <point>` line each | `partner: review`, `outcome`, `rounds` |
   | `deny` | after each call a guard denied, and each call Claude Code blocked because the guard's hook gave no answer; never for an allow, nor for a read the runner's rule allowed, nor for a call codex blocked because the runner could not be asked | `<tool> <command or path>: <reason>`, the first part cut at 200 characters and the reason at 500 | `partner: guard`, `guard` (`workflow` or `runner`: the guard that denied; for a block no single guard decided, `runner` when the runner's own guard is on), `tool` (the first part), `reason`, and the counts `in_a_row` and `denied` (the attempt's denies so far, both guards together) |
@@ -557,12 +643,14 @@ alone in a deliverable: its final message is not one.
   failed is `agent.session_failed`, and its text reaches neither the executor nor a note. In a failure's
   detail, `session_id` is the executor's session and `partner_session_id` the partner's. A reviewer that
   runs but returns no valid verdict is not a failure: the loop ends `partner_unavailable` and the node
-  completes. A guard never parks the node nor fails it with its harness's codes: whatever goes wrong
-  with a decision is a deny (`guard`, above), and the node fails only through the breaker
-  (`guard.breaker`) or the witness (`guard.unwitnessed`), at once. Apart from those, a guarded attempt
-  fails, and is retried, only when its private temporary directory cannot be made or is not private
-  (`guard.tmpdir_refused`, checked when the attempt starts and when a restarted runner takes it up
-  again). A watcher
+  completes. A guard's late or failed decision is a deny (`guard`, above), and denies fail the node
+  only through the breaker (`guard.breaker`), at once; the witness (`guard.unwitnessed`) also fails it
+  at once. A guard whose launch meets an error a retry cannot cure parks the node or fails it at once by
+  the kind of the error, as an agent session of its harness would (`guard`, "A guard whose launch
+  fails"); one a retry may cure is a deny. Apart from those, a
+  guarded attempt fails, and is retried, only when its private temporary directory cannot be made,
+  recorded or kept private (`guard.tmpdir_refused`, checked once in each runner process, by the first
+  turn of the attempt that actually runs there). A watcher
   never fails the node: a wake whose session fails or cannot start leaves no note, and the work goes
   on. Only its last look at the end of the turn can stop the node: when that session meets what parks
   a session (a provider usage limit, a lost login), the node parks.

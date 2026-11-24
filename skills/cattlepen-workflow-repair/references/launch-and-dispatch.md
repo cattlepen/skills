@@ -186,12 +186,11 @@ Diagnose by elimination, cheapest first:
 5. **Input files.** The runner checks them again and, unlike the server, names the field: "$input <name>
    does not match its schema: <n> error(s): ..." (`input.invalid`).
 6. **Harnesses.** `dispatch.unresolvable` "<node> cannot be dispatched: <cause>", for example a harness
-   the runner is not configured for, a partner on a harness other than `claude-code` or `codex`, a node
-   with a `guard` whose executor the run puts on a harness other than `claude-code` or `codex`, or a
-   node with a `watch` whose executor it puts on a harness other than `claude-code` (a task's node
-   override, written before the node had that partner or putting a watched node on `codex`: remove or
-   change it). On a Windows runner a guarded node whose executor runs on `codex` is declined too, naming
-   the platform: run the task on another runner or the node on `claude-code`. A runner whose operator
+   the runner is not configured for, a partner on a harness other than `claude-code` or `codex`, or a
+   node with a `guard` or a `watch` whose executor the run puts on a harness other than `claude-code` or
+   `codex` (a task's node override, written before the node had that partner: remove or change it). On a
+   Windows runner a guarded or watched node whose executor runs on `codex` is declined too, naming the
+   platform: run the task on another runner or the node on `claude-code`. A runner whose operator
    turned on the runner's own guard declines any agent node on a harness that guard cannot sit on
    (`cursor-cli`, `opencode`, and `codex` on Windows), the cause saying that the runner guards every
    agent node. The task's owner can run the task on another runner, or put the node on a harness that

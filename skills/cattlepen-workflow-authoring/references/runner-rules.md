@@ -24,7 +24,6 @@ shown; the other rows are read from the runner's source.
 | A rework's feedback deliverable is not also consumed by its head | `validate.feedback-duplicates-input` | drop that consume from the head; the head receives the feedback anyway |
 | Every inline `script` parses as POSIX `sh` | `script.syntax` (checked before the run starts) | run `sh -n` on the script text |
 | A review partner's `verdict` deliverable is `format: json` and declares exactly the fields the runner writes (the server checks only that the node produces it) | `validate.pair-verdict-unusable`, whose message prints the fields to declare | copy the block in `dialect.md`, "Partners"; change no name, type, `required` or enum value |
-| A `watch` partner sits on a node whose executor runs on `claude-code` (the server also accepts `codex`) | `validate.pair-mode-unsupported` at `nodes.<node>.pair.watch`, whose message says this runner does not run a `watch` partner on an executor running on `codex` | run the node's executor on `claude-code`, or remove the `watch` |
 | No YAML anchors, aliases or `<<` merge keys in any document | `parse.anchor-unsupported`, `parse.merge-key-unsupported` | write every value out |
 | No key twice in one mapping, no `=` key, and no key YAML reads as a non-string (an unquoted `on`, `yes`, `1`) in an agent or deliverable document | `parse.duplicate-key`, `parse.value-key-unsupported`, `parse.non-string-key` | quote such keys, write each key once |
 
@@ -42,12 +41,11 @@ When a run starts, the runner also refuses it for:
 - a repository using Git LFS on a runner without `git-lfs` (`workspace.lfs-unavailable`), or a
   submodule with a relative url while the runner's clone has no `origin` remote
   (`workspace.submodule-relative-url`);
-- a node with a `guard` partner whose executor the run puts on a harness other than `claude-code` or
-  `codex`, or a node with a `watch` partner whose executor it puts on a harness other than
-  `claude-code` (`dispatch.unresolvable`, naming the mode and the harness): the server checks a task's
-  node override only when it is written, so an override written before the node had its partner can
-  still move it, and it accepts an override that puts a watched node on `codex`;
-- on a Windows runner, a node with a `guard` partner whose executor runs on `codex`
+- a node with a `guard` or a `watch` partner whose executor the run puts on a harness other than
+  `claude-code` or `codex` (`dispatch.unresolvable`, naming the mode and the harness): the server
+  checks a task's node override only when it is written, so an override written before the node had
+  its partner can still move it;
+- on a Windows runner, a node with a `guard` or a `watch` partner whose executor runs on `codex`
   (`dispatch.unresolvable`, naming the platform);
 - on a runner whose operator turned on the runner's own guard, any agent node on `cursor-cli` or
   `opencode`, or on `codex` on a Windows runner (`dispatch.unresolvable`, saying that the runner guards
@@ -139,7 +137,6 @@ Walk the published YAML (`get_declaration`) and its pinned documents, and confir
       such as `on`, `yes` or `1` unquoted;
 - [ ] every review partner's `verdict` deliverable is `format: json` and declares exactly the fields
       in `dialect.md`, "Partners";
-- [ ] every node with a `watch` partner runs its executor on `claude-code`;
 - [ ] no inline node uses `run: {profile: ...}` unless the target repository defines that profile;
 - [ ] every repository the task selects has a `url` the runner can clone or a runner binding.
 

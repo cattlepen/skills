@@ -70,16 +70,23 @@ not seen on a run):
   left out, or else to stop: with a question when the node declares `escalation`, otherwise ending with
   the status word `blocked`, which is not routable. The node can complete either way, so read the `deny`
   notes before you call its work done.
-- A guard fails the node only two ways, at once and with no further attempt: `guard.breaker` (three
-  denies in a row, or ten in one attempt) and `guard.unwitnessed` (a call ran without a decision, or ran
-  although it was denied: the guard's hook did not fire on the runner machine; on a Codex executor, a
-  call that got past the hook, or a web search on the provider's side, found after it ran, so its
-  effect stays). A guard that answers late, fails or cannot be reached never parks the node: each such
-  decision is a deny whose reason says what went wrong (`codes.md`, section 5). A guarded attempt whose
-  private temporary directory the runner cannot use fails `guard.tmpdir_refused` and is retried.
+- A denied call alone never fails the node. A guard fails it at once, with no further attempt, through
+  `guard.breaker` (three denies in a row, or ten in one attempt) and `guard.unwitnessed` (a call ran
+  without a decision, or ran although it was denied: the guard's hook did not fire on the runner
+  machine; on a Codex executor, a call that got past the hook, a shell command that ran in another
+  directory than the guard judged, or a web search on the provider's side, found after it ran, so its
+  effect stays). A guard that answers late, whose session fails or whose launch fails in a way a retry
+  may cure denies the call, with a reason that says what went wrong (`codes.md`, section 5). Any other
+  failure of the guard's launch follows the kind of its error, as an agent session's does: one that
+  parks a session (a usage limit, a lost login, the provider offline) parks the node, and one that can
+  never succeed (a missing CLI, `claude.not_found` or `codex.not_found`, or credentials the runner
+  cannot obtain) fails it at once. A guarded attempt whose private temporary directory the runner cannot
+  use fails `guard.tmpdir_refused` and is retried.
 - `kind: "note"` (`payload.partner: "watch"`) is a note the watcher left: the message is the note, and
-  `delivery` is `hook` when it reached the executor at one of its tool calls during the work, or
-  `resume` when the runner handed it over after the work, in one extra turn of the executor's session.
+  `delivery` is `hook` when the runner sent it in its answer to the hook of one of the executor's tool
+  calls during the work (the runner publishes the note once that answer is written; on Codex, a
+  start-up file of the account's shell that prints to standard output can still lose it after that),
+  or `resume` when the runner handed it over after the work, in one extra turn of the executor's session.
   A wake that left no note publishes nothing; each wake adds the notes of its own session with
   `payload.partner: "watch"`. A `resume` note means the executor ran once more after its work had
   reached its status line, and that turn's result is the one the node reports. The watcher cannot
@@ -102,8 +109,8 @@ guard when the node has one. A node whose workflow declares no partner can then 
 `guard.unwitnessed` naming the runner's guard. Its policy is the operator's: a deny of the runner's
 guard is changed on the runner, not in the workflow. The same runner declines a run with an agent node
 on a harness its guard cannot sit on (`launch-and-dispatch.md`, section 7, step 6), and halts a run it
-takes up again after a restart, when the next node is on such a harness, with `node.internal_error`
-naming the node, the harness and the guard.
+takes up again after the guard was turned on, when the next node is on such a harness: that node fails
+at once with `agent.runtime_unsupported`, before any agent starts, naming the harness and the guard.
 
 ## 8. The run halted
 
@@ -219,7 +226,9 @@ total fails with `node.park_exhausted`. The proof is `parked_reason` gone from `
 adviser or reviewer parks it the same way, with the codes of the partner's own harness, which may differ
 from the executor's: compare the code with the run's `exec_profile`, which lists each node's partners
 under `pair`. So can a watcher's last look at the end of the work, with the codes of its harness; its
-wakes during the work never park it. A guard never parks the node: its decision is a deny instead.
+wakes during the work never park it. So can a guard, whenever its launch meets an error that parks a
+session of its harness (a usage limit, a login, the provider offline, a codex rate limit); the call it
+was deciding is decided again when the executor makes it after the resume.
 
 ## 10. A node fails, or loops through its reworks
 
@@ -253,8 +262,8 @@ inline node gets one attempt.
 | `profile.missing`, `profile.unknown` | ".shepherd/profiles.yml not found in the checked-out tree" / "profile '<name>' is not defined in .shepherd/profiles.yml; has: ..." | define the profile in the repository |
 | `signal.timeout` | "no signal on topic '<topic>' within <n>s" | a gate's `timeout_s` passed |
 | `node.park_exhausted`, `node.park_churn` | | parked too long (login, limits) |
-| `guard.breaker` | "the workflow's guard denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was ..." (or "the runner's guard", or "the runner's and the workflow's guards") | read the `deny` notes: reasons the guard wrote mean the executor kept trying what the policy forbids (state the policy to the executor too, or change a policy that forbids ordinary work; a policy of the runner's own guard is its operator's to change); reasons the runner wrote (a deadline, a failed session) mean the guard could not answer (`codes.md`, section 5). Not retried |
-| `guard.unwitnessed` | "the executor's call <id> (...) ran with no decision from the workflow's guard: ..."; on a Codex executor "... ran with no allow from ... and has already run: ..." or "... the model's web search is the provider's hosted tool, ..." | the guard's hook did not fire on that runner machine, or on Codex its answer did not reach codex: only the runner's operator can fix that machine. A Codex call found this way has already run, so check what it did. The hosted-search form: run the node on a Codex model whose search codex runs itself, or turn web search off (`codes.md`, section 5). Not retried |
+| `guard.breaker` | "the workflow's guard denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was ..." (or "the runner's guard", or "the runner's and the workflow's guards"; "denied <n> action(s) and gave no decision on <u>" when some calls got no decision) | read the `deny` notes: reasons the guard wrote mean the executor kept trying what the policy forbids (state the policy to the executor too, or change a policy that forbids ordinary work; a policy of the runner's own guard is its operator's to change); reasons the runner wrote (a deadline, a failed session) mean the guard could not answer (`codes.md`, section 5). Not retried |
+| `guard.unwitnessed` | "the executor's call <id> (...) ran with no decision from the workflow's guard: ..."; on a Codex executor "... ran with no allow from ... and has already run: ...", "... the model's web search is the provider's hosted tool, ...", "... ran in <directory>, while the workflow's guard judged it in the working directory ..." or "... codex recorded no directory for it ..." | the guard's hook did not fire on that runner machine, or on Codex its client never started: only the runner's operator can fix that machine. A Codex call found this way has already run, so check what it did. The directory forms: the executor ran a command in another directory (tell it in its prompt to write `cd <dir> && <command>`, never `workdir`), or codex kept no record of where it ran (tell the runner's operator). The hosted-search form: run the node on a Codex model whose search codex runs itself, or turn web search off (`codes.md`, section 5). Not retried |
 | `guard.tmpdir_refused` | "the executor's private temporary directory <path> ..., so this guarded attempt cannot run" | the path existed and was not a directory, or was a link (on macOS and Linux also: another user's directory, or a mode other than `0700`), or it could not be made; retried in a new directory. If it repeats, tell the runner's operator |
 
 An inline script's exit code is ignored; only the files it writes count. A script that prints an error and
