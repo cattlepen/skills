@@ -73,9 +73,11 @@ not seen on a run):
 - A denied call alone never fails the node. A guard fails it at once, with no further attempt, through
   `guard.breaker` (three denies in a row, or ten in one attempt) and `guard.unwitnessed` (a call ran
   without a decision, or ran although it was denied: the guard's hook did not fire on the runner
-  machine; on a Codex executor, a call that got past the hook, a shell command that ran in another
-  directory than the guard judged, or a web search on the provider's side, found after it ran, so its
-  effect stays). A guard that answers late, whose session fails or whose launch fails in a way a retry
+  machine; on a Codex executor, a call of the executor's own that got past the hook, a shell command
+  that ran in another directory than the guard judged, or a web search on the provider's side, found
+  after it ran, so its effect stays; not every such call is found, a sub-agent's call that got past
+  its hook among them). A guard
+  that answers late, whose session fails or whose launch fails in a way a retry
   may cure denies the call, with a reason that says what went wrong (`codes.md`, section 5). Any other
   failure of the guard's launch follows the kind of its error, as an agent session's does: one that
   parks a session (a usage limit, a lost login, the provider offline) parks the node, and one that can
@@ -110,7 +112,11 @@ guard when the node has one. A node whose workflow declares no partner can then 
 guard is changed on the runner, not in the workflow. The same runner declines a run with an agent node
 on a harness its guard cannot sit on (`launch-and-dispatch.md`, section 7, step 6), and halts a run it
 takes up again after the guard was turned on, when the next node is on such a harness: that node fails
-at once with `agent.runtime_unsupported`, before any agent starts, naming the harness and the guard.
+at once with `agent.runtime_unsupported`, before any agent starts, naming the harness and the guard. A
+node on such a harness that was in the middle of an attempt replays its recorded turns and fails with
+the same code at its first executor turn that runs live, with no executor started; an adviser's or a
+reviewer's step that comes first still runs, and a review loop that ends with no live executor turn
+completes the node.
 
 ## 8. The run halted
 
@@ -262,8 +268,8 @@ inline node gets one attempt.
 | `profile.missing`, `profile.unknown` | ".shepherd/profiles.yml not found in the checked-out tree" / "profile '<name>' is not defined in .shepherd/profiles.yml; has: ..." | define the profile in the repository |
 | `signal.timeout` | "no signal on topic '<topic>' within <n>s" | a gate's `timeout_s` passed |
 | `node.park_exhausted`, `node.park_churn` | | parked too long (login, limits) |
-| `guard.breaker` | "the workflow's guard denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was ..." (or "the runner's guard", or "the runner's and the workflow's guards"; "denied <n> action(s) and gave no decision on <u>" when some calls got no decision) | read the `deny` notes: reasons the guard wrote mean the executor kept trying what the policy forbids (state the policy to the executor too, or change a policy that forbids ordinary work; a policy of the runner's own guard is its operator's to change); reasons the runner wrote (a deadline, a failed session) mean the guard could not answer (`codes.md`, section 5). Not retried |
-| `guard.unwitnessed` | "the executor's call <id> (...) ran with no decision from the workflow's guard: ..."; on a Codex executor "... ran with no allow from ... and has already run: ...", "... the model's web search is the provider's hosted tool, ...", "... ran in <directory>, while the workflow's guard judged it in the working directory ..." or "... codex recorded no directory for it ..." | the guard's hook did not fire on that runner machine, or on Codex its client never started: only the runner's operator can fix that machine. A Codex call found this way has already run, so check what it did. The directory forms: the executor ran a command in another directory (tell it in its prompt to write `cd <dir> && <command>`, never `workdir`), or codex kept no record of where it ran (tell the runner's operator). The hosted-search form: run the node on a Codex model whose search codex runs itself, or turn web search off (`codes.md`, section 5). Not retried |
+| `guard.breaker` | "the workflow's guard denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was ..." (or "the runner's guard", or, when both are armed, "the runner's and the workflow's guards"; "denied <n> action(s) in this attempt, <u> of them with no decision, the last <k> in a row, ..." when some calls got no decision) | read the `deny` notes: reasons the guard wrote mean the executor kept trying what the policy forbids (state the policy to the executor too, or change a policy that forbids ordinary work; a policy of the runner's own guard is its operator's to change); reasons the runner wrote (a deadline, a failed session) mean the guard could not answer (`codes.md`, section 5). Not retried |
+| `guard.unwitnessed` | "the executor's call <id> (...) ran with no decision from the workflow's guard: ..."; on a Codex executor "... ran with no allow from ... and has already run: ...", "... the model's web search is the provider's hosted tool, ...", "... ran in <directory>, while the workflow's guard judged it in the working directory ..." or "... codex recorded no directory for it ..." | the guard's hook did not fire on that runner machine, or on Codex its client never started: only the runner's operator can fix that machine. A Codex call found this way has already run, so check what it did. The directory forms: the executor, or one of its sub-agents, ran a command in another directory (tell the executor in its prompt to write `cd <dir> && <command>`, never `workdir`), or codex kept no record of where it ran (tell the runner's operator). The hosted-search form: run the node on a Codex model whose search codex runs itself, or turn web search off (`codes.md`, section 5). Not retried |
 | `guard.tmpdir_refused` | "the executor's private temporary directory <path> ..., so this guarded attempt cannot run" | the path existed and was not a directory, or was a link (on macOS and Linux also: another user's directory, or a mode other than `0700`), or it could not be made; retried in a new directory. If it repeats, tell the runner's operator |
 
 An inline script's exit code is ignored; only the files it writes count. A script that prints an error and

@@ -294,10 +294,11 @@ nodes:
   for `review` that draws the warning `pair.same-model`, because a reviewer no stronger than the
   executor finds few of its defects.
 - **On the runner.** A `guard` and a `watch` run beside an executor on either of the two harnesses.
-  On `codex` a guard detects and stops: a call that got past the guard's hook, or a command that ran in
-  another directory than the one the guard judged, is found after it ran, and the node fails with its
-  effect left in place (`runtime-contract.md`, "Partners"). A runner on Windows declines a run with a
-  guarded or watched Codex node (`dispatch.unresolvable`, naming the platform).
+  On `codex` a guard detects and stops: a call of the executor's own that got past the guard's hook, or
+  a command that ran in another directory than the one the guard judged, is found after it ran, and
+  the node fails with its effect left in place; some calls are never found, a sub-agent's call that
+  got past its hook among them (`runtime-contract.md`, "Partners"). A runner on Windows declines a run
+  with a guarded or watched Codex node (`dispatch.unresolvable`, naming the platform).
 - **The partner's agent** is a pin in `agents:` (`link.unknown-agent` at `<node>.pair.<mode>.agent`,
   also when `agent` is missing), and a pin used only by a partner is a used pin (no `pin.unused`). The
   declaration carries no prompt or protocol text: the partner's prompt is its agent's prompt, and how

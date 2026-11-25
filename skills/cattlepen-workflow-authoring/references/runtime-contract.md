@@ -87,6 +87,16 @@ Your prompt is sent verbatim (no templating), followed by the runner's own text:
   denied call means, and with a watcher what a note is ([Partners](#partners)). A runner whose
   operator turned on the runner's own guard adds the guard's part to every agent node.
 
+On `claude-code` and `codex`, every turn of the agent also has `SHEPHERD_IN` and `SHEPHERD_OUT` in its
+environment, holding the paths of `in/` and `out/`; a partner's own session has neither. On
+`claude-code` the runner also sets them, and a guarded executor's private `TMPDIR`, in the settings it
+passes at launch, so a project's settings cannot point them elsewhere. On `codex`, where codex's shell
+environment policy has an allowlist, the agent's shell keeps them only if that allowlist admits them
+(with no allowlist it keeps them): a guarded launch adds them, with `TMPDIR` and
+`SHEPHERD_FILES_SOCKET`, to such an allowlist in the runner's codex settings, and one the runner does
+not read, in codex's own configuration or a trusted project's, must admit all four, or `$SHEPHERD_OUT`
+expands to nothing in the shell while the guard is told it names the output directory.
+
 So a prompt does not repeat paths, file names, field types or the status line. It says what the role
 is and what good work looks like, what goes into each field, **when to choose each enum value** (that
 is the routing), what to do when the work comes back, and what the agent must not do (for example:
@@ -136,7 +146,7 @@ runner's operator can turn on for every node, does to a node. Which mode to use,
 is in `patterns.md`, "Partners".
 
 This section was written on 2026-11-22 from unreleased versions of Cattlepen and the runner, brought up
-to date with the runner on 2026-11-24, and was checked against no running installation.
+to date with the runner on 2026-11-25, and was checked against no running installation.
 
 ### What each agent is told
 
@@ -171,7 +181,10 @@ runner tells it what it can do.
   that read, search and list files, and with no MCP server; on `codex` it runs in a read-only sandbox,
   whatever the runner's codex settings say about approvals and sandboxing. It works in the executor's
   working directory and reads the repository, the executor's inputs and the files the runner prepares
-  for it. It cannot change a file, run the project's tests or run any command that writes, so a partner
+  for it; a guard's decision on `codex` instead runs from a new, empty private directory outside the
+  tree and is told the working directory's path, so no project document, skill or codex setting of the
+  tree reaches it as an instruction.
+  It cannot change a file, run the project's tests or run any command that writes, so a partner
   prompt asks it to read and judge, never to run the tests or fix anything. A guard or a watcher on
   `claude-code` also keeps no session and reads none of the machine's user, project or local Claude
   Code settings, and it reads files only inside the working directory: not the executor's inputs, not
@@ -212,7 +225,8 @@ runner tells it what it can do.
   check is not one of the `max_calls` questions. A plan turn that leaves no readable plan gets no plan
   check: the runner logs a warning and the node goes on.
 - **The adviser's reply** has two parts, advice for the executor and questions only a person can settle,
-  and the executor receives it whole. Its questions never reach a person during the run (below).
+  and the executor receives it whole, or only its last 64 KiB when it is longer. Its questions never
+  reach a person during the run (below).
 - **With `escalation` as well.** `partner.json` and the escalation's `questions.json` are separate: the
   executor may write both in one turn, each is answered on its own budget (`max_calls`,
   `escalation.max_rounds`), and the resumed turn carries the adviser's reply first, then the person's
@@ -288,11 +302,13 @@ is not a sandbox").
 - **What the guard is given.** Each decision starts a new guard process (read-only and fresh, as above),
   whose input is its agent's prompt (the policy), then the runner's rules for a decision, then the
   request: the task's title and description, the working directory, the executor's temporary
-  directory, the node's output directory (when the node declares an output) and its question files
-  (`questions.json` with `escalation`, `partner.json` with `advise`), the last five calls of the attempt
-  it was asked about (their texts cut at 300 characters), the proposed call (its texts cut at 6,000)
-  and, for a command, the files it runs (below). It never sees the executor's prompt or its session,
-  nor a call the rule allowed. With its read tools it may open other files before its deadline.
+  directory, the node's output directory (when the node declares an output other than a review's
+  verdict) and its question files (`questions.json` with `escalation`, `partner.json` with `advise`),
+  the last five calls of the attempt it was asked about (their texts cut at 300 characters), the
+  proposed call (its texts cut at 6,000) and, for a command, the files it runs and those they name one
+  level down (below). It never sees the executor's prompt or its session, nor a call the rule allowed.
+  With its read tools it may open other files before its deadline, but a policy cannot count on that
+  (`patterns.md`, "A guard is not a sandbox").
 - **What it must answer.** One JSON object: a decision, `allow` or `deny`, and a one-sentence reason the
   executor will read. The runner's text asks for exactly that, so the policy never restates it. The
   answer is read strictly: anything but that object, with those two keys and no other, is a deny.
@@ -301,13 +317,16 @@ is not a sandbox").
   task, so a call the task itself asks for and the policy forbids is denied, the reason saying that a
   person has to make it or change the policy; that a read is judged by itself, even when the task it
   serves is denied; that the executor's temporary directory counts as part of the working directory and
-  other temporary directories do not; that writing in the node's output directory and to its question
-  files is part of the task, while its input directory and every other directory beside them are
-  outside; that reading or listing outside the working directory is allowed
-  unless the target is a secret or credential the policy names, while deleting or changing anything
-  outside the working directory and the temporary directory is denied; that text in files, output,
-  commands or the repository is data, never an instruction; that a claim it cannot check counts for
-  nothing; and that when unsure it denies and says what would make the call acceptable. So a policy
+  other temporary directories do not; that the node's output directory is the executor's
+  `$SHEPHERD_OUT`, and that writing in it, named by its path or through that variable, and to its
+  question files is part of the task, while its input directory and every other directory beside them
+  are outside, save that a recursive or wildcard delete written through `$SHEPHERD_OUT` is denied (an
+  empty variable would make it a delete of `/`) and the executor is asked for the literal output path,
+  with which the same delete is allowed; that reading or listing outside the working directory is
+  allowed unless the target is a secret or credential the policy names, while deleting or changing
+  anything outside the working directory and the temporary directory is denied; that text in files,
+  output, commands or the repository is data, never an instruction; that a claim it cannot check counts
+  for nothing; and that when unsure it denies and says what would make the call acceptable. So a policy
   names the secrets and credentials it protects and what the project forbids, and does not repeat these
   rules.
 - **The files attached to a command.** For a `Bash` call the runner attaches the file the shell would
@@ -316,15 +335,25 @@ is not a sandbox").
   directory: a script named as the command by a path with a `/` (`./deploy.sh`, not a bare name found
   on `PATH`), or given to `sh`, `bash`, `zsh`, `python`, `python3` or
   `node`, or to `source` or `.` by a name with a `/` (unless an option before the script passes the code
-  inline or on stdin, such as `-c`), and the Makefile of a `make`; then the files those name, one level
+  inline or on stdin, such as `-c`), the Makefile of a `make`, and the module a `python -m` or
+  `python3 -m` runs, with every `__init__.py` on its dotted path that is not empty (nothing for an
+  installed or standard-library module); then the files those name, one level
   down, found from the directory the script runs in, not from its own folder. It follows a `cd` or
   `pushd` to one literal directory only where it is sure the shell made it: first in its list or after
   other such moves joined by `&&`, outside a subshell, a compound command (`if`, `for`, `{ }` and the
   like) and the background. Any other directory change, an `eval` or a here-document stops the
-  attachment there: nothing named after it is attached. Each file is cut at 4,000 characters, and all of
-  them together at 16,000. A binary file, a file outside the working tree and a file reached through a
-  secret name (below), whether the name is written in the command, is a link met on the way or lies on
-  the resolved path, are never attached.
+  attachment there: nothing named after it is attached. A file the runner requires of the node (an
+  output's files, a question file) is attached too when the command runs it, named by its absolute
+  path, or through `$SHEPHERD_OUT`, in double quotes or unquoted whatever the output path holds, but
+  never in single quotes, inside `$'…'`, after a backslash, or once an earlier command on the line
+  may have set the name itself (an assignment, `export`, `source` and the like); a path that climbs
+  out with `..`, or a spelling through a link, attaches
+  nothing, and a relative name attaches only from a directory the file is under: the shell's own, or
+  one a literal `cd` moved to. Each file is cut at 4,000 characters, and all of them together at
+  16,000. A
+  binary file, any other file outside the working tree and a file reached through a secret name (below),
+  whether the name is written in the command, is a link met on the way or lies on the resolved path, are
+  never attached.
 - **What the executor experiences.** An allowed call goes on as if there were no guard: it still meets
   the runner's own Claude Code permissions, and under a permission mode other than bypass their prompt,
   so a guard can only narrow what the runner's operator allowed. A denied call does not run: it comes
@@ -335,7 +364,12 @@ is not a sandbox").
   on without the denied part when the task allows it and say in its result what it left out and why;
   otherwise to stop, and either ask a person (only when the node declares `escalation` with rounds
   left) or end with the status word `blocked`, naming the action and the guard's reason; and to keep
-  scratch files in `$TMPDIR`, naming it in the path, because a bare `mktemp` may ignore it. A guarded
+  scratch files in `$TMPDIR`, naming it in the path, because a bare `mktemp` may ignore it. In an
+  attempt that resumes a parked session, that section is followed by a paragraph saying that the
+  session was paused, that its private `$TMPDIR` is now a new one and the earlier one is no longer its
+  own, and, after a park on the guard's account, that each call of that session the park left
+  undecided (at most five, oldest first) got no decision and may be made again, which is not a retry of
+  a denied action. A guarded
   executor has a private `$TMPDIR` for each attempt, and the guard is told its path. The status word is
   a report for the person reading the run, and the runner does not act on it: a node whose executor
   ended `blocked` completes when its outputs are valid. A workflow that must know that a denied action
@@ -361,18 +395,18 @@ is not a sandbox").
 
 - **Calls the runner allows without the guard.** A `Read`, a `Grep` of one file or a `Glob` is allowed
   by the runner's rule, with no model and nothing published, when its target, followed through every
-  link, lies inside the working directory, the attempt's exchange directory (the executor's inputs) or
-  a read-only repository's checkout, and no part of its path matches a secret name; a `Grep`'s `glob`
-  must not be able to match a secret name, and a `Glob`'s pattern must not be able to list one. A
-  `Write` or `Edit` is allowed by the rule only when its target is exactly one of the files the runner
-  requires of the node: an output's `.json` and its body file, `questions.json` when the node declares
-  `escalation`, `partner.json` when it declares `advise` (never a review's verdict, which the runner
-  writes), and only when no link is at that path or on its way. The rule only ever allows. Everything
-  else goes to the guard: every command, every other write and edit, a `Grep` of a directory, every
-  other tool (the session's own, such as its to-do list, included), a read in the temporary directory
-  or outside those places, a read through a link that leads outside them, a path holding `~` or `$`,
-  and every call the rule cannot clear. So a policy cannot forbid a read the rule allows: the guard
-  never sees it.
+  link, lies inside the working directory, the attempt's whole exchange directory (`in/` and `out/`) or
+  a read-only repository's checkout, and neither a part of its path nor a link met on the way matches a
+  secret name; a `Grep`'s `glob` must not be able to match a secret name, and a `Glob`'s pattern must
+  not be able to list one. A `Write` or `Edit` is allowed by the rule only when its target is exactly
+  one of the files the runner requires of the node: an output's `.json` and its body file,
+  `questions.json` when the node declares `escalation`, `partner.json` when it declares `advise` (never
+  a review's verdict, which the runner writes), and only when no link (on Windows, no junction either)
+  is at that path or on its way. The rule only ever allows. Everything else goes to the guard: every
+  command, every other write and edit, a `Grep` of a directory, every other tool (the session's own,
+  such as its to-do list, included), a read in the temporary directory or outside those places, a read
+  through a link that leads outside them, a path that opens with `~` or holds `$`, and every call the
+  rule cannot clear. So a policy cannot forbid a read the rule allows: the guard never sees it.
 - **The secret names** are a list on the runner, set by its operator (`[guard] secret_patterns` in the
   runner's configuration): by default `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, `id_ed25519*`,
   `.npmrc`, `.pypirc`, `.netrc` and `.git-credentials`, matched against each part of a path without
@@ -381,7 +415,8 @@ is not a sandbox").
   may be read. A file off the list that the executor must not read stays out of those places, or its
   name goes onto the list; a command that reads it reaches the guard either way.
 - **The deadline.** One decision may take `[guard] decision_timeout_s` of the runner's configuration
-  (30 seconds by default), counted from when the runner receives the call, including any wait for a
+  (30 seconds by default), counted from when the runner receives the call (for the workflow's guard
+  behind the runner's own, from the runner's guard's allow), including any wait for a
   free partner slot (a runner process runs `partner_max_concurrent` decisions at once, 3 by default;
   an operator who raises `claude_max_concurrent` or `codex_max_concurrent` raises it with them:
   otherwise calls wait past the deadline on a busy runner and are denied). A decision past it is a
@@ -401,9 +436,9 @@ is not a sandbox").
   when it is made again.
 - **The breaker.** Three denies in a row, or ten in one attempt, stop the executor's turn, and the node
   fails at once with `guard.breaker`, with no further attempt, so the run halts. Its message says how
-  many calls the guard denied and how many got no decision (a late or failed decision, an unreadable
-  answer). Any allow, the rule's included, ends a row. The counts carry across the attempt's turns and
-  start again in a new attempt.
+  many calls were denied in the attempt and how many of them got no decision (a late or failed decision,
+  an unreadable answer). Any allow, the rule's included, ends a row. The counts carry across the
+  attempt's turns and start again in a new attempt.
 - **The witness.** Every call whose result comes back to the executor must have had a decision. A call
   that ran with none (the guard's hook did not fire: a managed Claude Code policy or a broken hook can
   switch hooks off), or a denied call that ran anyway, stops the turn, and the node fails at once with
@@ -422,18 +457,28 @@ is not a sandbox").
 **On a `codex` executor: detect and stop.** Codex also asks the runner before each tool call, and a call
 the guard denies never runs. But codex lets a call run when its hook never answers, so the runner also
 reads the executor's stream, and codex's own record of where each command ran, and checks every call
-against an allow the guard gave. What differs from the above:
+they show against an allow the guard gave. What differs from the above:
 
 - **What it guarantees, and what it does not.** A denied call never runs, whatever the hook's shell
-  prints as it starts (a shell start-up file that prints does not undo a deny). A call that got past
-  the hook (its client never started), and a shell command that ran in another directory than the one
-  the guard judged it in (below), are found only after they ran: the turn is stopped and the node fails
-  at once with `guard.unwitnessed`, saying that the call has already run, but the call's effect stays.
-  On `claude-code`, a hook that cannot answer blocks the call instead.
+  prints as it starts (a shell start-up file that prints does not undo a deny). A call of the executor's
+  own that got past the hook (its client never started), and a shell command that ran in another
+  directory than the one the guard judged it in (below), are found only after they ran: the turn is
+  stopped and the node fails at once with `guard.unwitnessed`, saying that the call has already run,
+  but the call's effect stays. Some are not found: a sub-agent's call that got past its hook
+  runs unseen; an allow that no call of the stream used (a sub-agent's allowed call, one that failed to
+  start) covers a later call of the same content that got past the hook; a web search or a
+  collaboration call that got past its hook is not reliably found; and a command still running when the
+  turn ends is not checked for where it ran. On `claude-code`, a hook that cannot answer blocks the call
+  instead.
 - **Where a command runs.** Codex lets its model pass a `workdir` with a shell command and runs the
   command there, and the guard is shown the command alone, which it judges as run in the working
   directory. So the first turn's section tells the executor never to pass `workdir`, and to put
-  `cd <dir> && ` in front of a command instead, which the guard follows. A command that ran in another
+  `cd <dir> && ` in front of a command instead, which the guard follows. A sub-agent never sees that
+  turn, so the runner also passes the rule to codex as the executor's developer instructions, which a
+  sub-agent inherits (measured on codex-cli 0.156.1) unless something replaces them for that
+  sub-agent, such as the role it is started in setting its own, which a trusted project's codex
+  configuration can do; on a guarded Codex executor they replace the developer instructions that
+  codex's own configuration (its home or a trusted project) sets. A command that ran in another
   directory anyway fails the node with `guard.unwitnessed`, naming the directory it ran in; so does a
   completed command whose directory codex did not record.
 - **Every call goes to the guard.** Codex reads, searches and lists files with commands, and the
@@ -458,14 +503,16 @@ against an allow the guard gave. What differs from the above:
 - **Hooks run without codex's trust check, outside its sandbox.** Arming a guard or a watcher on a Codex
   executor makes codex run, without asking, every enabled hook whose trust it never recorded or that
   changed since, among them the hooks a repository declares for codex when codex's configuration
-  trusts that project, and codex runs a hook outside its sandbox. Measured on codex-cli 0.156.1: under
+  trusts that project, and codex runs a hook outside its sandbox. It also turns codex's hooks feature
+  on where the operator's codex settings turned it off, so these hooks run then too, the guard's and
+  the watcher's among them. Measured on codex-cli 0.156.1: under
   a `workspace-write` sandbox policy in the runner's codex settings, which a guarded executor keeps, a
   trusted repository's own never-trusted hook ran before each call and wrote outside the sandbox's
   writable roots, where the executor's own write was refused. The runner allows this: the guard judges
   the executor's calls, not the hooks.
 - **A sub-agent's calls** reach the guard but never the executor's stream, so the stream cannot show
   them; the guard still decides them.
-- **The rest is as on `claude-code`:** the request and its attached files, the deadline, a guard that
+- **The rest is as on `claude-code`:** the request and its attached files, the deadline, a guard
   whose launch fails, the breaker, the `deny` notes, the private `$TMPDIR` and the first-turn section.
 - **On a Windows runner** a guarded Codex node does not run: the runner declines the run before any
   node starts (`dispatch.unresolvable`, naming the platform). The server does not know that rule, so it
@@ -496,11 +543,16 @@ in a workflow turns it off, and the operator's policy outranks the workflow's. I
   turned the guard on is not checked again at its start: a node that already finished keeps its
   result, and the next node on such a harness fails at once, before any agent starts and with no
   further attempt (`agent.runtime_unsupported`, with the same sentence as the decline), which halts the
-  run naming the node. An executor first guarded in the middle of an attempt is told about the guard on
-  the first turn it runs guarded.
+  run naming the node. A node on such a harness that was in the middle of an attempt replays the turns
+  it recorded and fails the same way at its first executor turn that runs live, before that turn's
+  agent starts; an adviser's or a reviewer's step that comes first still runs, and a review loop that
+  ends with no live executor turn completes the node. An executor first guarded in the middle of an
+  attempt is told about the guard on the first turn it runs guarded.
 - **Its tokens** are a share of their own (`runner_guard`, below), counted in the node's totals.
 - **`shepherd doctor`** on a runner with its own guard shows a `guard` row, which fails when the
-  guard's harness is not installed or its own checks failed.
+  guard's harness is not installed or its own checks failed. On any runner not on Windows that has
+  `codex` and no `curl`, it shows a `curl` warning: the hook clients of a guarded or watched Codex
+  executor run `curl`, so without it codex blocks every call of a guarded node and a watcher sees none.
 
 Its policy is a file on the runner, not an agent of the workflow, so an author can neither read nor
 change it. Ask the runner's operator what it forbids, and state the same rules to the executor, as for
@@ -580,10 +632,13 @@ first turn's section says so. What else differs from the above:
   codex-cli 0.156.1). A failed command is shown in the digest as failed, with its exit code.
 - **A shell start-up file that prints to standard output loses the note.** Codex runs the hook through
   the account's shell and reads the hook's whole standard output as the answer, so such a line spoils
-  it: the note is lost, and the call runs on (measured on codex-cli 0.156.1).
+  it: the note is lost, and the call runs on (measured on codex-cli 0.156.1). The runner still records
+  such a note as delivered: it publishes its `note` with `delivery: hook`, counts it against
+  `max_notes` and does not hand it over at the end of the turn.
 - **Hooks run without codex's trust check.** Arming a watcher makes codex run every enabled hook it has
-  not trusted, outside its sandbox, as arming a guard does (`guard`, above, with what was measured). A
-  node with both carries the guard's hook and the watcher's on every call.
+  not trusted, outside its sandbox, and turns codex's hooks feature on, as arming a guard does (`guard`,
+  above, with what was measured). A node with both carries the guard's hook and the watcher's on every
+  call.
 
 ### A partner's questions
 
@@ -612,11 +667,11 @@ alone in a deliverable: its final message is not one.
   | kind | when | message | other fields |
   |---|---|---|---|
   | `ask` | the executor's question is put to the adviser (never for a plan, nor for a question that is not asked) | the question | `partner: advise` |
-  | `advice` | after each adviser call | the advice's first line (`(no advice)` when there is none), then `questions:` and one `- <question>` line each; at most 2,000 characters, the questions kept first (past that, `(<n> more question(s) not listed)`) and the advice line cut with `…` | `partner: advise`, `call` (`plan`, or the question's number from 1), `questions` (a count, all of them) |
+  | `advice` | after each adviser call | the advice's first line (`(no advice)` when there is none), then `questions:` and one `- <question>` line each; at most 2,000 characters, the questions kept first (the adviser is told a length per question at which three fit; past the bound, `(<n> more question(s) not listed)`) and the advice line cut with `…` | `partner: advise`, `call` (`plan`, or the question's number from 1), `questions` (a count, all of them) |
   | `verdict` | after each review that returned a valid verdict | `round <n>: <ship or revise> · <b> blocker · <m> major · <mi> minor · <q> question(s)` | `partner: review`, `round`, `verdict`, and the counts `blocker`, `major`, `minor`, `questions` |
   | `verdict` | once, when the review loop ends | `<outcome> after <n> review(s)`, then `open findings:` with one `- <severity> <file>:<line>: <claim>` line each, and `questions:` with one `- <point>` line each | `partner: review`, `outcome`, `rounds` |
   | `deny` | after each call a guard denied, and each call Claude Code blocked because the guard's hook gave no answer; never for an allow, nor for a read the runner's rule allowed, nor for a call codex blocked because the runner could not be asked | `<tool> <command or path>: <reason>`, the first part cut at 200 characters and the reason at 500 | `partner: guard`, `guard` (`workflow` or `runner`: the guard that denied; for a block no single guard decided, `runner` when the runner's own guard is on), `tool` (the first part), `reason`, and the counts `in_a_row` and `denied` (the attempt's denies so far, both guards together) |
-  | `note` | each note the watcher leaves: when it reaches the executor at a tool call, or before the resume that carries it; never for a wake that left no note or failed | the note | `partner: watch`, `delivery` (`hook` or `resume`) |
+  | `note` | each note the watcher leaves: when the runner sends it in its answer to the hook of a tool call, or before the resume that carries it; never for a wake that left no note or failed | the note | `partner: watch`, `delivery` (`hook` or `resume`) |
 
   A guard publishes nothing for an allow. Each decision that starts a guard, the runner's own included,
   and each watcher wake add the notes of their own session (`session`, `say` and the like) with
@@ -638,7 +693,8 @@ alone in a deliverable: its final message is not one.
 - **Failures.** An adviser's or a reviewer's session fails like an agent session of its harness, with
   the same codes and under the same rule. What parks an executor parks the node here too (a provider
   usage limit, a lost login, a codex rate limit); when it resumes, the executor's session continues and
-  the partner runs again. Any other failure spends one of the node's attempts, and the next attempt
+  the partner runs again. What can never succeed (a missing CLI, say) fails the node at once, with no
+  further attempt. Any other failure spends one of the node's attempts, and the next attempt
   starts over, with a fresh executor session, partners included. An adviser session its harness reports
   failed is `agent.session_failed`, and its text reaches neither the executor nor a note. In a failure's
   detail, `session_id` is the executor's session and `partner_session_id` the partner's. A reviewer that
