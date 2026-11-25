@@ -212,14 +212,24 @@ runs:
 ### A guard is not a sandbox
 
 A guard is not a sandbox: it is a gate on the agent's own actions. It judges each tool call the agent
-chooses that the runner's own rule has not already allowed, from the call's text, the repository files
-the runner attaches and, with read tools, the files it opens inside the working tree before its
-deadline. It does not see code a command loads from anywhere else, such as an interpreter's own
-packages, a dependency, or something fetched at run time: on small tasks a harmful start-up file
-outside the tree was allowed in all 36 trials, in every configuration.
+chooses that the runner's own rule has not already allowed, from the call's text, the files
+the runner attaches and, with read tools, the files it opens before its deadline (a guard on
+`claude-code` opens them only inside the working tree). It does not see code a command loads from
+anywhere else, such as an interpreter's own packages, a dependency, or something fetched at run time:
+on small tasks a harmful start-up file outside the tree was allowed in all 36 trials, in every
+configuration.
 
-- A small model judges the command line; following what a script runs takes a stronger model with read
-  tools.
+- A guard judges what it is shown: the command line and the files the runner attaches to it. A file the
+  runner does not attach is read only if the guard opens it, and a policy cannot count on that
+  (below).
+- A policy can count only on what the runner attaches to a command: the script it runs (named as the
+  command by a path with a `/`, or given to `sh`, `bash`, `zsh`, `python`, `python3` or `node`, or to
+  `source` or `.` by a name with a `/`), the Makefile of a `make`, the module a `python -m` runs, the
+  files those name one level down, and the node's own exchange files the command runs. A command whose
+  code lives anywhere else reaches the guard with nothing attached: `npm run build` attaches no
+  `package.json`. Do not count on the guard opening such a file itself. Measured on a `python -m` build
+  whose module was not attached, on codex-cli 0.156.1 and on Claude Code 2.1.332, a decision on each
+  harness allowed a build whose module force-pushed, without opening that module.
 - A claim inside a command that the guard cannot check (that it is safe, approved, only a test) can turn
   its deny into an allow. The starter guard's prompt tells it to judge what a command does, not what it
   says about itself.
@@ -229,15 +239,15 @@ outside the tree was allowed in all 36 trials, in every configuration.
 - Each decision adds latency to the tool call it judges, even with a small model; a read the runner's
   rule allows adds none.
 - On a Claude Code executor it cannot forbid a read the runner allows. A read, a search of one file or
-  a listing with the agent's own file tools inside the working tree, the agent's inputs or a read-only
-  repository is allowed by the runner before the guard is asked, unless a part of its path matches one
-  of the runner's secret names: a list the runner's operator sets, by default `.env`, `.env.*`,
-  `*.pem`, `*.key`, SSH key files and the usual credential files (`.npmrc`, `.pypirc`, `.netrc`,
-  `.git-credentials`). Keep a file that must not be read out of those places, or have its name put on
-  that list (`runtime-contract.md`, "Partners"). A write of the node's own outputs and question files
-  with those tools is allowed the same way, and the guard is told that writing them is part of the
-  task. A search over a directory reaches the guard. A Codex executor reads and writes with commands,
-  so every call reaches the guard.
+  a listing with the agent's own file tools inside the working tree, the attempt's exchange directory
+  (its inputs and outputs) or a read-only repository is allowed by the runner before the guard is
+  asked, unless a part of its path, or a link met on the way, matches one of the runner's secret names:
+  a list the runner's operator sets, by default `.env`, `.env.*`, `*.pem`, `*.key`, SSH key files and
+  the usual credential files (`.npmrc`, `.pypirc`, `.netrc`, `.git-credentials`). Keep a file that must
+  not be read out of those places, or have its name put on that list (`runtime-contract.md`,
+  "Partners"). A write of the node's own outputs and question files with those tools is allowed the
+  same way, and the guard is told that writing them is part of the task. A search over a directory
+  reaches the guard. A Codex executor reads and writes with commands, so every call reaches the guard.
 - On a Claude Code executor it fails closed. A decision that comes too late, a guard session that fails
   and a guard that cannot be reached all deny the call, and three denies in a row, or ten in one
   attempt, fail the node at once (`guard.breaker`). A call that ran without a decision, because
@@ -249,19 +259,23 @@ outside the tree was allowed in all 36 trials, in every configuration.
 - On a Codex executor it detects and stops. A call the guard denies never runs, and the same deadline
   and breaker apply, but codex lets a call run when the guard's hook never answers, and runs a shell
   command in the directory its model names, which the guard is not shown. The runner finds such a call
-  after it ran, stops the turn and fails the node (`guard.unwitnessed`); the call's effect stays. The
-  executor is told to write `cd <dir> && <command>` instead. A guarded Codex executor also has no
+  after it ran, stops the turn and fails the node (`guard.unwitnessed`); the call's effect stays. Not
+  every such call is found: a sub-agent's call whose hook never answered runs unseen, and so can a call
+  that an earlier, unused allow of the same content covers (`runtime-contract.md`, "Partners"). The
+  executor and its sub-agents (unless something, such as a sub-agent's role, replaces its developer
+  instructions) are told to write `cd <dir> && <command>` instead. A guarded Codex executor also has no
   interactive terminal session, and on a model whose web search is the provider's hosted tool a search
   fails the node. A runner on Windows declines a run with a guarded Codex node, naming the platform.
 - It judges the agent's tool calls, nothing else. On Claude Code a repository's own hooks run with no
   decision (measured on Claude Code 2.1.330 with a project's `SessionStart` hook), and arming a guard
-  turns back on hooks that a user, project or local `disableAllHooks` setting switched off (a managed
-  policy's setting still wins); a skill's inline shell command does not run at all. On Codex, arming a
-  guard or a watcher makes codex run every enabled hook it has not trusted, the hooks a trusted
-  repository declares among them, and codex runs hooks outside its sandbox: measured on codex-cli
-  0.156.1, under a `workspace-write` sandbox policy the runner's operator set for codex, a trusted
-  repository's own hook wrote outside the sandbox where the agent's own write was refused. The runner
-  allows this.
+  or a watcher turns back on hooks that a user, project or local `disableAllHooks` setting switched off
+  (a managed policy's setting still wins); with a guard, a skill's inline shell command does not run at
+  all. On Codex, arming a guard or a watcher turns codex's hooks feature on where the operator's codex
+  settings turned it off, and makes codex run every enabled hook it has not trusted, the hooks a
+  trusted repository declares among them, and codex runs hooks outside its sandbox: measured on
+  codex-cli 0.156.1, under a `workspace-write` sandbox policy the runner's operator set for codex, a
+  trusted repository's own hook wrote outside the sandbox where the agent's own write was refused.
+  The runner allows this.
 - It never widens what the agent's own calls may do: on Claude Code, a call the guard allows still
   meets the runner's own permissions, and on Codex the operator's sandbox policy when one is set.
 
@@ -300,7 +314,7 @@ for the agent's own choices on top of it.
 | a design that expects someone to answer a partner during the run | nobody does and the node does not wait: the executor decides alone; route the verdict to a gate, or declare `escalation` |
 | a guard used as a sandbox | it never sees what a command loads from outside the working tree; keep real isolation |
 | a guard's policy the executor was not told | the executor finds the policy one deny at a time, and three denies in a row or ten in one attempt fail the node (`guard.breaker`); state the rules to the executor too |
-| a guard's policy that forbids reading a file inside the working tree | on a Claude Code executor the runner allows a read of it with the agent's file tools without asking the guard, unless a part of its path matches the runner's list of secret names; keep the file out of the tree, or have its name listed |
+| a guard's policy that forbids reading a file inside the working tree | on a Claude Code executor the runner allows a read of it with the agent's file tools without asking the guard, unless a part of its path, or a link met on the way, matches the runner's list of secret names; keep the file out of the tree, or have its name listed |
 | a plan check and a review that guard against the same mistake | twice the partner calls, and nothing more caught |
 | a review `verdict` nobody routes | running out of rounds never fails the node, so without a switch on the verdict the run carries on as if the review had passed |
 | a watcher used instead of a reviewer | its notes do not stop a wrong choice; a review at the end caught what a watcher missed, for less |

@@ -420,10 +420,10 @@ them as a block), and a new workflow version that pins it.
 | `signal.timeout` | `no signal on topic '<topic>' within <n>s` (a gate's `timeout_s`) |
 | `map.over-limit` / `map.member_failed` | `map '<id>' sized <n> members over its limit <m> ...` / `map members failed: <ids>` |
 | `node.park_exhausted` / `node.park_churn` | parked past the 48-hour budget / re-parked too often |
-| `guard.breaker` | `<guards> denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was <tool> <command or path>: <reason>`, where `<guards>` is `the workflow's guard`, `the runner's guard` or `the runner's and the workflow's guards`; when some calls got no decision, `denied <n> action(s) and gave no decision on <u>` |
+| `guard.breaker` | `<guards> denied <n> action(s) in this attempt, the last <k> in a row, so the turn was stopped; the last denied action was <tool> <command or path>: <reason>`, where `<guards>` is `the workflow's guard`, `the runner's guard` or, when both are armed, `the runner's and the workflow's guards`; when some calls got no decision, `<guards> denied <n> action(s) in this attempt, <u> of them with no decision, the last <k> in a row, ...` |
 | `guard.unwitnessed` | on a Claude Code executor: `the executor's call <id> (<tool> <command or path>) ran with no decision from <guards>: the guard's hook did not fire (a managed policy or a broken hook can switch it off)`, or `... ran although <guard> denied it`; on a Codex executor: `the executor's call <item> (<tool> <command or path>) ran with no allow from <guards> recorded before it, and has already run: codex lets a call run when the guard's hook is skipped, fails or times out`, `... ran with no allow from <guards>: the model's web search is the provider's hosted tool, which no hook sees, and the search has already run`, ``the executor's call <id> (Bash <command>) ran in <directory>, while <guards> judged it in the working directory <cwd>: codex runs a shell command in the `workdir` its model passes, which the guard's hook is never shown, and the call has already run``, or `... ran, and codex recorded no directory for it in its rollout, so the runner cannot tell whether it ran in the working directory <cwd>, where <guards> judged it` |
 | `guard.tmpdir_refused` | `the executor's private temporary directory <path> <what is wrong with it>, so this guarded attempt cannot run`; retried like a failed session |
-| `agent.runtime_unsupported` | `<harness> requires an explicit model and supports neither effort nor extra_args`, for a `cursor-cli` or `opencode` node that names no model, or names an effort or extra arguments; also a run that a runner with its own guard took up again after the guard was turned on, when its next node is on a harness that guard cannot sit on: `this runner guards every agent node, and its guard ...`, the sentence of the decline (section 5); the node fails at once, before any agent starts |
+| `agent.runtime_unsupported` | `<harness> requires an explicit model and supports neither effort nor extra_args`, for a `cursor-cli` or `opencode` node that names no model, or names an effort or extra arguments; also a run that a runner with its own guard took up again after the guard was turned on, when its next node is on a harness that guard cannot sit on: `this runner guards every agent node, and its guard ...`, the sentence of the decline (section 5); the node fails at once, before any agent starts. A node on such a harness that was in the middle of an attempt replays its recorded turns and fails with the same code and sentence at its first executor turn that runs live, with no executor started (an adviser's or a reviewer's step that comes first still runs, and a review loop that ends with no live executor turn completes the node) |
 | `node.internal_error` | an unexpected error inside the runner |
 
 Outside this pattern: `plan-directed halt` (a `cancel` node was reached, M) and
@@ -431,7 +431,8 @@ Outside this pattern: `plan-directed halt` (a `cancel` node was reached, M) and
 
 **A partner's failures.** An adviser or a reviewer runs as a session of its own harness and fails with
 that harness's codes (`claude.*`, `codex.*`), under the rule an executor's session follows: what parks an
-executor parks the node (below), anything else spends one of the node's attempts, and the next attempt
+executor parks the node (below); what can never succeed (a missing CLI, say) fails it at once, with no
+further attempt; anything else spends one of the node's attempts, and the next attempt
 starts over, executor and partners alike. An adviser session its harness reports failed is
 `agent.session_failed` `the advise partner's session failed (<subtype>) before it replied`. In the
 failure's `detail`, `session_id` is the executor's session and `partner_session_id` the partner's. A
@@ -483,13 +484,19 @@ Code configuration; until then run the task on another runner, or publish a vers
 On a Codex executor the guard detects and stops: codex lets a call run when the guard's hook never
 answers, and runs a shell command in a `workdir` its model passes, which the hook is never shown; the
 runner finds such a call in the executor's stream, or in codex's record of where the command ran, after
-it ran. `guard.unwitnessed` (`detail`: `item_id` and `tool`, or for a command that ran elsewhere
-`tool_use_id`, `tool` and `directory`) then says the call has already run, so check what it did. The
-first form means a call the runner cannot match to an allow the guard gave: usually a hook that never
-started on the runner machine (a start-up file of the account's shell that prints does not undo a
-deny). The directory forms mean the executor passed a
-`workdir` although its first turn told it to write `cd <dir> && <command>` (say so in the executor's
-prompt too), or that codex kept no record of where the command ran (tell the runner's operator). The
+it ran. Some calls are not found: a sub-agent's call whose hook never answered, which does not reach
+the executor's stream; a call that an earlier allow of the same content, which no call used, covers; a
+web search or a collaboration call that got past its hook, which is not reliably found; and a command
+still running when the turn ends, which is not checked for where it ran. `guard.unwitnessed`
+(`detail`: `item_id` and `tool`, or for a command that ran elsewhere `tool_use_id`, `tool` and
+`directory`) then says the call has already run, so check what it did. The first form means a call the
+runner cannot match to an allow the guard gave: usually a hook that never started on the runner machine
+(a start-up file of the account's shell that prints does not undo a deny). The directory forms mean the
+executor, or one of its sub-agents, passed a `workdir` although it was told to write
+`cd <dir> && <command>` (the executor in its first turn, a sub-agent through the executor's developer
+instructions, which it inherits unless something, such as its role, replaces them for it; say so in
+the executor's prompt too), or that codex kept no record of where the command ran (tell the runner's
+operator). The
 hosted-search form means the executor's Codex model searches the web on the provider's side, where no
 hook sees it: run the node on a Codex model whose search goes through codex's own tool, or have the
 runner's operator turn Codex's web search off in the runner's codex settings. A call the hook could not
@@ -500,7 +507,7 @@ is denied` when the runner machine has no `curl`, or `shepherd: <guards> gave an
 cannot read; the call is denied`. Such a block has no `deny` note and does not count toward the
 breaker, and the blocked call leaves no note of its own; only
 the executor's messages may mention it. Calls blocked that way point at the runner machine: tell its
-operator.
+operator (`shepherd doctor` there shows a `curl` warning when `curl` is missing).
 
 With the runner's own guard on, its denies are `deny` notes with `guard: runner`, and the executor reads
 `Denied by the runner's guard: <reason>`. A call is asked of the runner's guard first and of the
