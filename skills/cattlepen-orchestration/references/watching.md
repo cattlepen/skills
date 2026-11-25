@@ -14,7 +14,7 @@ Open this in steps 5 to 7.
   placement attempt;
 - `halt_kind` and `failed_node` on a halted run;
 - `dispatch_attempts`, `stopped_at`, `workflow_version`, `exec_profile` (the harness and model of each agent
-  node), `result_files`, `summary_only`.
+  node, and of each of its partners under `pair`), `result_files`, `summary_only`.
 
 Seen on three finished runs: a completed one with `outcome: {"status": "completed", "reason": null}`; a
 halted one with `halt_kind: "runner"`, a `failed_node`, and `outcome.reason: "plan-directed halt"` (the
@@ -33,8 +33,23 @@ Event types, in the order a run produces them:
 - `run_dispatched` (a runner was offered the run), `run_started` (it accepted);
 - `node_started` (`node_id`, `iteration`, `attempt`), then `node_event` rows while it works: the agent's
   messages (`payload.kind` `say`), its commands (`bash`), the model in use (`binding`), `publish`, and
-  `delta` ("changed N files");
-- `node_completed`, whose `payload.deliverables` is a list of `{name, value}`;
+  `delta` ("changed N files"). An agent node with partners (an adviser, a reviewer, a guard, a
+  watcher) adds their rows: each carries `payload.partner`, the partner's mode, and the runner adds
+  `ask` (the agent's question to its adviser), `advice` (the answer, and any questions it left for a
+  person), `verdict` (one per review, and one with the outcome when the review loop ends), `deny` (a
+  call a guard denied, which did not run: the tool, the reason, the attempt's deny counts, and `guard`,
+  `workflow` or `runner`; an allowed call adds no row) and `note` (a note the watcher left the agent,
+  with `delivery` `hook` while the agent worked or `resume` in one more turn after it). A runner whose
+  operator turned on the runner's own guard adds `deny` rows with `guard: runner` to agent nodes that
+  declare no partner as well;
+- `node_completed`, whose `payload.deliverables` is a list of `{name, value}`. It also carries the node's
+  tokens, every agent of the node together: `token_usage` (uncached input and output), `cache_read`,
+  `cache_write`.
+  On an agent node that spent any, `usage_by_role` splits the same tokens into shares
+  `{role, harness, model, token_usage, cache_read, cache_write}`, one per role, harness and model:
+  `role` is `executor` for the node's own agent, the partner's mode (`advise`, `review`, `guard`,
+  `watch`) or `runner_guard` for the runner's own guard, and `model` is left out when the runner cannot
+  name it. The shares add up to the totals;
 - `awaiting_answer` (the run parked on a question) and `answer_recorded` (`answer`, `by`);
 - `branch_routed` (`value`, `to`) and `rework_triggered` (`rework`): the workflow chose a path, or sent work
   back to an earlier node, which then runs again with the next `iteration`;
@@ -85,7 +100,8 @@ answer_wait(run_id="<run id>", node_id="<items[].node_id>",
 ```
 
 `iteration` is a string (`"0"`, `"1"`); copy all four values from the wait you are answering. There are three
-kinds of wait.
+kinds of wait. A partner's question is never one of them: nobody answers it during the run, the node does
+not wait for it, and it is attached to the result (`results.md`).
 
 **A human gate.** A node the workflow author put there for a person. Its `question` is one entry,
 `{"id": "prompt", "question": "<the gate's prompt>"}`. The answer is a JSON object of the gate's

@@ -16,9 +16,14 @@ What it does:
 - checks that the workflow pins exactly the agents and deliverables in the directory, at the
   directory's version, with one version per name;
 - with --prefix, renames the workflow and every agent and deliverable it defines, everywhere
-  they are referenced, including inline scripts ($SHEPHERD_OUT/<name>.json, SHEPHERD__<NAME>);
-  one-line `label:` and `prompt:` values are prose and keep their words, and an agent's
-  prompt.md is renamed only where a name stands alone in backticks;
+  they are referenced, including inline scripts ($SHEPHERD_OUT/<name>.json, SHEPHERD__<NAME>)
+  and a partner's `agent` and a review partner's `verdict`; one-line `label:` and `prompt:`
+  values are prose and keep their words, and an agent's prompt.md is renamed only where a name
+  stands alone in backticks;
+- never renames a key of the dialect: with --prefix it refuses, writing nothing, a name that is
+  also a dialect key, a deliverable field name or an enum value, and, when a node of the
+  workflow carries `pair`, a name that is also a key of that block (`pair`, a mode such as
+  `review`, or a field such as `verdict`); rename such an entry in the source instead;
 - prints the bundle JSON for preview_workflow_import and import_workflow on stdout;
 - with --validate-copy, also writes the filled documents in the runner's local bundle layout,
   ready for `shepherd validate DIR`.
@@ -51,6 +56,16 @@ DIALECT_WORDS = {
     "enum", "items", "string", "int", "float", "bool", "object", "array", "json", "markdown", "html",
     "expects", "yields", "version", "sha256", "true", "false", "null",
 }
+
+# Keys of an agent node's `pair` block: the block itself, its four modes, each mode's fields and a
+# partner runtime's keys. Outside a workflow that declares `pair` these words are free entry names
+# (several examples have a deliverable `review`); inside one they are keys as well.
+PAIR_WORDS = {
+    "pair", "advise", "review", "guard", "watch", "agent", "runtime", "harness", "model", "effort",
+    "max_calls", "plan", "max_rounds", "verdict", "every", "max_notes",
+}
+PAIR_KEY = re.compile(r"(?:^|[{,])\s*[\"']?pair[\"']?\s*:")
+BLOCK_SCALAR = re.compile(r":\s*[|>][-+0-9]*\s*(?:#.*)?$")
 
 
 class BundleError(Exception):
@@ -149,7 +164,29 @@ def one_version(entry, suffix):
     return candidates[0], int(stem)
 
 
-def renamer(names, prefix, field_words):
+def declares_pair(workflow):
+    section, scalar_indent = None, None
+    for line in workflow.split("\n"):
+        indent = len(line) - len(line.lstrip(" "))
+        if scalar_indent is not None:
+            if not line.strip() or indent > scalar_indent:
+                continue
+            scalar_indent = None
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if indent == 0:
+            top = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\s*:", line)
+            section = top.group(1) if top else None
+        if BLOCK_SCALAR.search(line):
+            scalar_indent = indent
+        if section != "nodes" or re.match(r"^\s*(label|prompt):", line):
+            continue
+        if PAIR_KEY.search(line.strip()):
+            return True
+    return False
+
+
+def renamer(names, prefix, field_words, paired):
     mapping = {name: prefix + name for name in names}
     for name in names:
         new = mapping[name]
@@ -159,6 +196,10 @@ def renamer(names, prefix, field_words):
             raise BundleError(
                 f"cannot rename {name!r} by prefix: it is also a dialect key, field name or enum value;"
                 " rename it in the source instead")
+        if paired and name in PAIR_WORDS:
+            raise BundleError(
+                f"cannot rename {name!r} by prefix: the workflow declares `pair`, where {name!r} is also"
+                " a key; rename it in the source instead")
     order = sorted(mapping, key=len, reverse=True)
 
     def rename_line(line):
@@ -218,7 +259,7 @@ def build(source, prefix, validate_copy):
     if prefix:
         names = [workflow_name] + [a[0] for a in agents_src] + [d[0] for d in deliverables_src]
         words = field_words_of([d[2] for d in deliverables_src])
-        mapping, everywhere, backticked = renamer(names, prefix, words)
+        mapping, everywhere, backticked = renamer(names, prefix, words, declares_pair(workflow))
         workflow = everywhere(workflow)
         agents_src = [(mapping[n], v, everywhere(doc), backticked(p)) for n, v, doc, p in agents_src]
         deliverables_src = [(mapping[n], v, re.sub(r"(?m)^name:.*$", "name: " + mapping[n], doc))

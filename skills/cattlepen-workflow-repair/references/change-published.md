@@ -46,10 +46,20 @@ Measured facts:
      long form.
    - Route B: add a binding change for each draft dependency (see `save-validate-publish.md`, section 3).
    - New nodes and reworks need a fresh UUID `id`, as on any draft.
+   - A node's partners (`pair`) are part of the node's value: change a partner's agent, runtime or
+     bounds by replacing the whole node, with its `id` kept. A task's runtime override for a partner is
+     keyed by node id and mode, so it follows the partner while both stay, and it is dropped when the new
+     version removes that partner or the node. Adding a `guard` or a `watch` to a node does not re-check
+     a task's node override written before: one that runs a guarded or watched node on a harness other
+     than `claude-code` or `codex` makes the runner decline every run of the task
+     (`dispatch.unresolvable`) until the override is removed or changed. A runner on Windows declines a
+     guarded or watched node whose executor runs on `codex` (`codes.md`, section 5).
 5. **Validate twice.** `validate_workflow{workflow_id, version: N+1}` must return no error. Then run the
    runner's checks on the draft (`runner-only-rules.md`): `shepherd validate` on its export when
    `shepherd version` works, otherwise every manual rule. Checking the draft is the point: once published,
-   a version the runner refuses stays in the version list for good.
+   a version the runner refuses stays in the version list for good. A review partner's `verdict`
+   deliverable is one such rule: the runner refuses it unless it declares exactly the fields it writes
+   (`validate.pair-verdict-unusable`, `codes.md`, section 5), and the server does not check them.
 6. **Publish, when the request needs a published fix.** A request such as "it will not publish, fix it" or
    "its runs vanish, fix it" is only met by a published version, so publish without asking again; ask first
    only when the user asked for a diagnosis or when the fix would change a route, prompt or output that

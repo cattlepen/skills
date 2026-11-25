@@ -104,13 +104,19 @@ both sources, not measured). Test them by hand the same way:
   encloses a dynamic group (`rework.span-crosses-map`);
 - in an agent or deliverable document, a merge key `<<:` (`parse.merge-key-unsupported`), a `=` key
   (`parse.value-key-unsupported`), the same key twice in one mapping (`parse.duplicate-key`), or a key
-  that YAML reads as a non-string, such as an unquoted `on`, `yes` or `1` (`parse.non-string-key`).
+  that YAML reads as a non-string, such as an unquoted `on`, `yes` or `1` (`parse.non-string-key`);
+- a review partner's `verdict` deliverable that is not `format: json`, or whose fields are not exactly
+  the ones the runner writes into it (`validate.pair-verdict-unusable` at
+  `nodes.<node>.pair.review.verdict`, whose message prints the fields to declare). The server checks
+  only that the node produces it. Compare every field's name, `type`, `required` and enum values, nested
+  fields included, with the block in the `cattlepen-workflow-authoring` skill's `references/dialect.md`,
+  "Partners" (`codes.md`, section 5).
 
 ### Checks that depend on the runner machine
 
 These are applied when a run is offered, against the runner and the repositories, so `shepherd validate`
-cannot see them (`shepherd preflight` can, on that machine). Test them by reading the project and the
-repository:
+cannot see them (`shepherd preflight` can, on that machine). Test them by reading the project, the task
+and the repository:
 
 | decline code | the run needs |
 |---|---|
@@ -120,7 +126,7 @@ repository:
 | `workspace.lfs-unavailable` | `git-lfs` installed and configured on the runner, if a repository uses Git LFS |
 | `workspace.submodule-relative-url` | an `origin` remote, if `.gitmodules` uses relative URLs |
 | `input.invalid` | every input file valid against its deliverable (the server checks this too, see `launch-and-dispatch.md`, 5.2) |
-| `dispatch.unresolvable` | a runner configured for each harness the workflow names |
+| `dispatch.unresolvable` | a runner configured for each harness the workflow names; on a Windows runner, no node with a `guard` or a `watch` partner whose executor runs on `codex`; on a runner whose operator turned on the runner's own guard, which judges every agent node, no agent node on `cursor-cli` or `opencode`, nor on `codex` when that runner is on Windows; and no task node override (`exec_overrides`) that puts a guarded or watched node on a harness other than `claude-code` or `codex` (the server checks an override only when it is written). Causes, messages and fixes: `codes.md`, section 5 |
 
 ## Fix and proof
 

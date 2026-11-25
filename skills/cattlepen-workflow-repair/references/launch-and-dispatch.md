@@ -37,6 +37,36 @@ is configured", carrying the same object as `problem`.
 | `process_not_selected` | the task has no workflow: `update_task{task_id, workflow_id}` |
 | `runner_revoked`, `harness_disabled_on_runner`, `model_missing_on_runner` | the task is pinned to a runner key that is gone or lacks the harness or model: change the key or the task's runner (`cattlepen-projects`) |
 
+**A problem that names a `mode`** is about a partner of the node (`node_name`, `node_id`), not about the
+node's own runtime: `no_runner_supports`, `harness_disabled_on_runner` and `model_missing_on_runner` carry
+`mode` (`advise`, `review`, `guard` or `watch`) when the partner's runtime is at fault, and so does the
+diagnostic path of a `version_not_launchable` (`nodes.<name>.pair.<mode>.runtime...`, or
+`nodes.<name>.pair.<mode>` for `pair.harness-unsupported`). `model_required` is never a partner's. Two
+fixes:
+
+- **For every task:** change the partner's `runtime` in a new version of the workflow
+  (`change-published.md`): a harness and model the catalog lists, on `claude-code` or `codex`.
+- **For this task only:** override the partner's runtime by node id and mode, without a new version:
+
+  ```json
+  {"operation": "PATCH /tasks/{id}", "request": {"path": {"id": "<task id>"}, "body": {"partner_overrides":
+   {"<node_id from the problem>": {"review": {"harness": "claude-code", "model": "<a model the catalog lists>"}}}}}}
+  ```
+
+  through `mutate_api_operation`. The value is a whole runtime (`harness` required; an absent model or
+  effort is the harness's own default), and the body replaces the whole map: send every partner override
+  the task keeps, or `{}` to clear them. A partner override never changes its node, and the node's own
+  `exec_overrides` never change its partners. Refusals: 422 `task.override_unknown_node` with `mode` (the
+  launched version has no such agent node, or the node has no partner in that mode),
+  `task.override_harness_unsupported` (a partner runs on `claude-code` or `codex` only), and the
+  `task.override_unknown_harness`, `_unknown_effort` and `_invalid_model` codes with `mode`
+  (`codes.md`, section 3). A workflow change resets the map, and an entry whose node or mode the version
+  no longer declares is dropped.
+
+Proof for a partner: the task's `launch_problem` is `null`, and `read_api_operation{operation:
+"GET /tasks/{id}/exec-profile", request: {path: {id}}}` shows, for that node, `pair.<mode>.effective` with
+the runtime you meant.
+
 Measured example: a node with `runtime: {harness: claude-code, model: claude-example-9}` published
 with `launchable: true`; its task showed
 `{"code": "no_runner_supports", "node_name": "write", "harness": "claude-code", "model": "claude-example-9"}`.
@@ -83,7 +113,8 @@ Proof: `get_task_readiness` returns `ready: true` and `diagnostics: []`.
   task's `repo` is `null`. A queued task in that state shows `queue_wait: "repository"`; an unqueued one
   shows nothing until you start it. Fix: `update_task{task_id, repo: <entry name>}`.
 - `409` `task.launch_frozen`: the task has a run pending, active or cancelling, and its launch fields
-  (`repo`, `readonly_repos`, workflow version, runner) are read-only until that run ends.
+  (`repo`, `readonly_repos`, workflow version, runner, `exec_overrides`, `partner_overrides`) are
+  read-only until that run ends.
 
 Proof: the task shows the intended `repo` and `readonly_repos`, and a queued task's `queue_wait` is no longer
 `repository`.
@@ -99,7 +130,7 @@ then an object with a `code`. Codes and their fields are in `codes.md`, section 
 |---|---|
 | `runner_busy`, `all_matching_busy` | wait: the run dispatches when a runner finishes one (seen: `{"code": "runner_busy", "running": 3, "max": 3, ...}` on a waiting run) |
 | `runner_limit_reached`, `all_matching_limit_reached` | a model provider's usage limit; `resets_at` says until when. `list_runners` shows each runner's `limits` (`backend`, `window`, `status`, `used_percent`, `resets_at`) and `limited_until` |
-| `runner_offline`, `no_matching_runner` | no connected runner can take it. `no_matching_runner` is also what every runner being offline looks like. Check `list_runners` (`last_seen_at`) and the harness and model the run needs (`harness`, `model` in the reason); start or configure a runner (`cattlepen-projects`) |
+| `runner_offline`, `no_matching_runner` | no connected runner can take it. `no_matching_runner` is also what every runner being offline looks like. Check `list_runners` (`last_seen_at`) and the harness and model the run needs (`harness`, `model` in the reason; it may be a partner's, and the reason does not say which: the run's `exec_profile` lists each node's partners under `pair`); start or configure a runner (`cattlepen-projects`) |
 | `runner_unsuitable`, `runner_invalid` | the task is pinned to a runner that lacks the harness or model, or reports a problem (`reasons[].text`) |
 | `account_full` | all seats are taken; `{"used": 0, "seat_count": 0}` means no seats at all, for example a self-hosted installation without a valid license |
 | `project_full` | the project's concurrent-run cap; wait, or raise it |
@@ -155,7 +186,17 @@ Diagnose by elimination, cheapest first:
 5. **Input files.** The runner checks them again and, unlike the server, names the field: "$input <name>
    does not match its schema: <n> error(s): ..." (`input.invalid`).
 6. **Harnesses.** `dispatch.unresolvable` "<node> cannot be dispatched: <cause>", for example a harness
-   the runner is not configured for.
+   the runner is not configured for, a partner on a harness other than `claude-code` or `codex`, or a
+   node with a `guard` or a `watch` whose executor the run puts on a harness other than `claude-code` or
+   `codex` (a task's node override, written before the node had that partner: remove or change it). On a
+   Windows runner a guarded or watched node whose executor runs on `codex` is declined too, naming the
+   platform: run the task on another runner or the node on `claude-code`. A runner whose operator
+   turned on the runner's own guard declines any agent node on a harness that guard cannot sit on
+   (`cursor-cli`, `opencode`, and `codex` on Windows), the cause saying that the runner guards every
+   agent node. The task's owner can run the task on another runner, or put the node on a harness that
+   guard sits on; the runner's operator can turn that guard off, or remove those harnesses from the
+   key's enabled harnesses so that such runs stop being placed there. A run that carries no runtime for a
+   declared partner is `exec-profile.invalid` (`codes.md`, section 5).
 
 If you or the user can reach the runner machine, its log has one line per refusal,
 `shepherd: run <run id> declined — <code>: <message>`, and `shepherd preflight` reproduces the start checks

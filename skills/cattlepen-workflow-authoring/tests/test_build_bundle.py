@@ -40,6 +40,35 @@ nodes:
     type: end
 """
 
+PAIRED_WORKFLOW = """schema_version: 2
+id: REPLACE_WITH_ENTRY_ID
+name: paired
+agents:
+  worker: {version: 1}
+  critic: {version: 1}
+deliverables:
+  report: {version: 1}
+  review_verdict: {version: 1}
+outputs: [report, review_verdict]
+entry: write
+nodes:
+  write:
+    type: agent
+    agent: worker
+    runtime: {harness: claude-code, model: claude-sonnet-5-5}
+    pair:
+      review:
+        agent: critic
+        runtime: {harness: claude-code, model: claude-opus-5-5}
+        max_rounds: 2
+        verdict: review_verdict
+      guard: {agent: critic, runtime: {harness: claude-code}}
+    produces: [report, review_verdict]
+    next: done
+  done:
+    type: end
+"""
+
 
 class BuildBundleTests(unittest.TestCase):
     def setUp(self):
@@ -121,6 +150,31 @@ class BuildBundleTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertIn("cannot rename 'report'", result.stderr)
 
+    def test_prefix_on_a_paired_workflow_renames_partner_references_and_refuses_a_pair_key_name(self):
+        self.write("workflow.yml", PAIRED_WORKFLOW)
+        self.write("agents/critic/1/agent.yml", "schema_version: 1\nid: REPLACE_WITH_ENTRY_ID\nname: critic\n")
+        self.write("agents/critic/1/prompt.md", "You review the work.\n")
+        (self.root / "deliverables/verdict").rename(self.root / "deliverables/review_verdict")
+        self.write("deliverables/review_verdict/1.yml",
+                   "schema_version: 1\nid: REPLACE_WITH_ENTRY_ID\nname: review_verdict\nformat: json\n")
+        result = self.run_builder("--prefix", "acme_")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        workflow = json.loads(result.stdout)["declaration"]
+        self.assertIn("    pair:\n      review:\n        agent: acme_critic\n", workflow)
+        self.assertIn("        max_rounds: 2\n        verdict: acme_review_verdict\n", workflow)
+        self.assertIn("      guard: {agent: acme_critic, runtime: {harness: claude-code}}\n", workflow)
+
+        self.write("workflow.yml", PAIRED_WORKFLOW.replace(
+            "  review_verdict: {version: 1}\n", "  review_verdict: {version: 1}\n  review: {version: 1}\n"))
+        self.write("deliverables/review/1.yml",
+                   "schema_version: 1\nid: REPLACE_WITH_ENTRY_ID\nname: review\nformat: markdown\n")
+        copy = self.base / "copy"
+        result = self.run_builder("--prefix", "acme_", "--validate-copy", str(copy))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("cannot rename 'review'", result.stderr)
+        self.assertFalse(copy.exists())
+
     def test_refuses_two_versions_of_one_dependency(self):
         self.write("deliverables/report/2.yml", "schema_version: 1\nid: REPLACE_WITH_ENTRY_ID\nname: report\n")
         result = self.run_builder()
@@ -146,11 +200,12 @@ class BuildBundleTests(unittest.TestCase):
         for example in sorted((SKILL / "examples").iterdir()):
             if not (example / "workflow.yml").is_file():
                 continue
-            with self.subTest(example=example.name):
-                result = subprocess.run([sys.executable, str(BUILDER), str(example)], capture_output=True,
-                                        text=True, encoding="utf-8", check=False)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(json.loads(result.stdout)["workflow"]["name"], example.name)
+            for prefix in ("", "acme_"):
+                with self.subTest(example=example.name, prefix=prefix):
+                    result = subprocess.run([sys.executable, str(BUILDER), str(example), "--prefix", prefix],
+                                            capture_output=True, text=True, encoding="utf-8", check=False)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout)["workflow"]["name"], prefix + example.name)
 
 
 if __name__ == "__main__":

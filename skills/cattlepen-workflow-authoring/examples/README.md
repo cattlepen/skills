@@ -1,16 +1,20 @@
 # Example bundles
 
-Three complete workflows in the source layout that `scripts/build_bundle.py` reads. Each one was
-built with that script, previewed with no diagnostic, imported, published through a publication
-plan, and checked clean by `shepherd validate`, both as source and as published. These three have
-not been run end to end; a different workflow of the same shape as `proposal_review` (agent, gate,
-switch, rework) completed a run on a test installation. The prerequisites below are what a run needs.
+Four complete workflows in the source layout that `scripts/build_bundle.py` reads. Each of the first
+three was built with that script, previewed with no diagnostic, imported, published through a
+publication plan, and checked clean by `shepherd validate`, both as source and as published. These
+three have not been run end to end; a different workflow of the same shape as `proposal_review`
+(agent, gate, switch, rework) completed a run on a test installation. The fourth, `paired_change`, was
+built with the script and checked clean by an unreleased build of the runner's `shepherd validate`,
+with and without `--prefix`; it was never imported, published or run, because no released Cattlepen
+server carried partners when it was written. The prerequisites below are what a run needs.
 
 | example | shape | needs at run time |
 |---|---|---|
 | `proposal_review` | agent writes a proposal, the owner approves or rejects it, a reject sends the note back (bounded rework), exhaustion stops the run | a repository the agent can read; a `brief` input file |
 | `code_change` | plan, implement, inline lint and test, review, inline commit and pull request (it commits tracked edits and the new files the developer lists in `change.files`, never untracked build output); a failing check and a reviewer's `rework` both route into one rework; exhaustion goes to an owner gate | `scripts/check.sh` in the repository, `jq` and an authenticated `gh` on the runner, an `origin` remote the runner can push to; a `task` input file |
 | `staged_build` | design and design review (one rework), build an html page and play-test it (a second rework), the owner plays it | a headless browser on the runner for the builder and the tester; a `concept` input file |
+| `paired_change` | one developer node with all four partners: an adviser it may ask, a reviewer that can send the work back (its verdict routed by a switch: a pass goes on to commit and open a pull request, anything else to an owner gate), a guard on its tool calls and a watcher that leaves it notes; the four partner agents are starters, each with one section marked `FILL IN BEFORE PUBLISHING` for the project's rules | a server and a runner that support partners, the developer on `claude-code` or `codex` (a guard and a watcher sit beside no other executor, and a runner on Windows declines them beside `codex`); `jq` and an authenticated `gh` on the runner, an `origin` remote the runner can push to; a `task` input file; the four starters filled in |
 
 Layout:
 

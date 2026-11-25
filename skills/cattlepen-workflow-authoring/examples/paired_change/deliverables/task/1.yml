@@ -1,0 +1,7 @@
+schema_version: 1
+id: REPLACE_WITH_ENTRY_ID
+name: task
+format: json
+fields:
+  title: {type: string, required: true}
+  description: {type: string}

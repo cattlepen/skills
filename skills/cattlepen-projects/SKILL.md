@@ -123,7 +123,8 @@ count for the project, connected or not. If none fits, propose a key (`create_ap
 key settings and what a key enables.
 
 Done when: one listed runner has `status: "online"`, is yours (`own: true`) or `shared: true`, has
-each harness the workflow uses in `enabled_harnesses`, and lists in `models` any model a node pins.
+each harness the workflow uses, its nodes' partners included, in `enabled_harnesses`, and lists in
+`models` any model a node or a partner pins.
 
 ### 8. Check that the task can start
 

@@ -15,7 +15,10 @@ by both.
 
 > **Status:** all four skills are written and were checked against a running Cattlepen
 > installation and the runner's own validator. Each `SKILL.md` holds the rules and the steps;
-> details sit in its `references/`.
+> details sit in its `references/`. What they say about partners (an agent node's `pair`: an
+> adviser, a reviewer, a guard or a watcher) and the runner's own guard was written on 2026-11-22
+> from unreleased versions of Cattlepen and the runner, brought up to date with the runner on
+> 2026-11-24, and was checked against no running installation.
 
 ## How the four fit together
 
