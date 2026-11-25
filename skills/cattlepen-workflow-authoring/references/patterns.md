@@ -226,10 +226,16 @@ configuration.
   command by a path with a `/`, or given to `sh`, `bash`, `zsh`, `python`, `python3` or `node`, or to
   `source` or `.` by a name with a `/`), the Makefile of a `make`, the module a `python -m` runs, the
   files those name one level down, and the node's own exchange files the command runs. A command whose
-  code lives anywhere else reaches the guard with nothing attached: `npm run build` attaches no
+  code lives anywhere else, or whose script sits behind a reserved word (such as `do`, `then`, `{`) or
+  behind a word such as `time` or `command`, reaches the guard with nothing attached: `npm run build`
+  attaches no
   `package.json`. Do not count on the guard opening such a file itself. Measured on a `python -m` build
   whose module was not attached, on codex-cli 0.156.1 and on Claude Code 2.1.332, a decision on each
-  harness allowed a build whose module force-pushed, without opening that module.
+  harness allowed a build whose module force-pushed, without opening that module. And what is attached
+  is not always what runs: bytecode cached in `__pycache__` or a compiled extension beside a module can
+  run in place of the source the guard is shown, a namespace directory can give way to a regular
+  package or module of the same name elsewhere on Python's path, and a shell function or alias named
+  like an interpreter can make the file shown differ from the file that runs.
 - A claim inside a command that the guard cannot check (that it is safe, approved, only a test) can turn
   its deny into an allow. The starter guard's prompt tells it to judge what a command does, not what it
   says about itself.
