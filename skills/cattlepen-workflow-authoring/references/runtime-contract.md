@@ -95,7 +95,9 @@ environment policy has an allowlist, the agent's shell keeps them only if that a
 (with no allowlist it keeps them): a guarded launch adds them, with `TMPDIR` and
 `SHEPHERD_FILES_SOCKET`, to such an allowlist in the runner's codex settings, and one the runner does
 not read, in codex's own configuration or a trusted project's, must admit all four, or `$SHEPHERD_OUT`
-expands to nothing in the shell while the guard is told it names the output directory.
+expands to nothing in the shell while the guard is told it names the output directory. An operator's
+explicit exclude of one of the four, in a `filters` allowlist of the runner's codex settings, drops it
+the same way.
 
 So a prompt does not repeat paths, file names, field types or the status line. It says what the role
 is and what good work looks like, what goes into each field, **when to choose each enum value** (that
@@ -329,15 +331,20 @@ is not a sandbox").
   for nothing; and that when unsure it denies and says what would make the call acceptable. So a policy
   names the secrets and credentials it protects and what the project forbids, and does not repeat these
   rules.
-- **The files attached to a command.** For a `Bash` call the runner attaches the file the shell would
-  really run, or nothing. It reads the command as the shell does (joined lines, comments dropped, quoted
-  operators kept as text) and finds the files inside the working tree that it runs, from the shell's
-  directory: a script named as the command by a path with a `/` (`./deploy.sh`, not a bare name found
-  on `PATH`), or given to `sh`, `bash`, `zsh`, `python`, `python3` or
+- **The files attached to a command.** For a `Bash` call the runner attaches the file it expects the
+  shell to run, or nothing. It reads the command as a shell does, as far as it models one (joined
+  lines, comments dropped, quoted operators kept as text, and a line holding an unquoted `$'…'` both as
+  bash and zsh read it and as dash does, attaching what either reading runs) and finds the files inside
+  the working tree that it runs, from the shell's directory: a script named as the command by a path
+  with a `/` (`./deploy.sh`, not a bare name found on `PATH`), or given to `sh`, `bash`, `zsh`,
+  `python`, `python3` or
   `node`, or to `source` or `.` by a name with a `/` (unless an option before the script passes the code
   inline or on stdin, such as `-c`), the Makefile of a `make`, and the module a `python -m` or
-  `python3 -m` runs, with every `__init__.py` on its dotted path that is not empty (nothing for an
-  installed or standard-library module); then the files those name, one level
+  `python3 -m` runs, each dotted part matched by its exact name, case included, with every
+  `__init__.py` on its dotted path that is not empty (nothing for an installed or standard-library
+  module, nor for one whose path holds a non-empty `__init__.py` that leads outside the tree or
+  through a secret name); a script or a module behind a reserved word (such as `do`, `then`, `{`) or
+  behind a word such as `time` or `command` attaches nothing; then the files those name, one level
   down, found from the directory the script runs in, not from its own folder. It follows a `cd` or
   `pushd` to one literal directory only where it is sure the shell made it: first in its list or after
   other such moves joined by `&&`, outside a subshell, a compound command (`if`, `for`, `{ }` and the
@@ -345,8 +352,10 @@ is not a sandbox").
   attachment there: nothing named after it is attached. A file the runner requires of the node (an
   output's files, a question file) is attached too when the command runs it, named by its absolute
   path, or through `$SHEPHERD_OUT`, in double quotes or unquoted whatever the output path holds, but
-  never in single quotes, inside `$'…'`, after a backslash, or once an earlier command on the line
-  may have set the name itself (an assignment, `export`, `source` and the like); a path that climbs
+  never in single quotes, inside `$'…'`, after a backslash, or once an earlier command on the line,
+  as the runner reads it, may have set the name itself (an assignment, `export`, `source`, a command
+  word or a setter's name the shell builds by brace expansion or from a `$'…'` string, and the like); a
+  path that climbs
   out with `..`, or a spelling through a link, attaches
   nothing, and a relative name attaches only from a directory the file is under: the shell's own, or
   one a literal `cd` moved to. Each file is cut at 4,000 characters, and all of them together at
@@ -367,9 +376,10 @@ is not a sandbox").
   scratch files in `$TMPDIR`, naming it in the path, because a bare `mktemp` may ignore it. In an
   attempt that resumes a parked session, that section is followed by a paragraph saying that the
   session was paused, that its private `$TMPDIR` is now a new one and the earlier one is no longer its
-  own, and, after a park on the guard's account, that each call of that session the park left
-  undecided (at most five, oldest first) got no decision and may be made again, which is not a retry of
-  a denied action. A guarded
+  own, and, after a park on the guard's account (on `claude-code` also any later park, when the runner
+  crashed during one), that each call of that session a park on the guard's account left undecided (at
+  most five, oldest first) got no decision and may be made again, which is not a retry of a denied
+  action. A guarded
   executor has a private `$TMPDIR` for each attempt, and the guard is told its path. The status word is
   a report for the person reading the run, and the runner does not act on it: a node whose executor
   ended `blocked` completes when its outputs are valid. A workflow that must know that a denied action
